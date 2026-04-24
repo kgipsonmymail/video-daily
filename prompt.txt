@@ -1,0 +1,19 @@
+我现在需要生成海螺视频，然后参考文档在这个ref文件夹，然后你试着来创建不同的任务，我现在每天有两个额度，海螺生成视频有两个模型Hailuo-2.3-Fast-768P 6s，Hailuo-2.3-768P 6s，这两个模型各有两个额度，然后你帮我测试 生成 4 种不同的任务，并且把获得的视频 下载到我们本地，然后这些视频按照不同的目的 放到不同的文件夹，根目录
+我们测试的主题是想象一个巨树世界：人类生存在一个巨大的树木上，这个树木的叶片有一个城镇那么大。所以人在叶片上耕种与生活。除了这个巨树，其它的植物都是正常大小。
+你可以基于这个生成文字描述与图片，测试各个接口。
+
+然后，文件创建规则为：
+
+"F:\sys\o\OneDrive - LightGroup\programs\2_bytools\minimax-cc\video-daily\works\photo"这里放图片，图片和提示词的前缀相同，同一个提示词的不同图片用数字作为后缀，比如xxx.txt，xxx1.png这样放到里面。
+"F:\sys\o\OneDrive - LightGroup\programs\2_bytools\minimax-cc\video-daily\works\vidoe"这里放视频，视频同理。
+
+写一个程序，把这个页面里面的文档抓取下来：
+https://platform.minimaxi.com/docs/api-reference/music-generation
+我需要的是：
+api参考里面的https://platform.minimaxi.com/docs/api-reference/
+所有的api指引都要下载下来：
+按文本、语音、视频、图片、音乐、文件作为子目录。
+放到：
+ref/api/text
+ref/api/voice
+...
