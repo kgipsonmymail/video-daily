@@ -1,0 +1,155 @@
+/* Video Daily — 柔和温暖风格 CSS */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* 低饱和柔焦底色 */
+  --bg-base: #f5f3ee;          /* 暖白灰 — 主背景 */
+  --bg-card: rgba(255, 255, 255, 0.72);  /* 卡片半透白 */
+  --bg-sidebar: rgba(245, 243, 238, 0.88);
+  --bg-glass: rgba(255, 255, 255, 0.45);
+
+  /* 柔和文字色 */
+  --text-primary: #3d3545;     /* 深灰紫 — 主文字 */
+  --text-secondary: #8a8394;   /* 灰紫 — 次要文字 */
+  --text-hint: #bdb9c8;        /* 淡紫灰 — 提示文字 */
+
+  /* 低饱和点缀色 */
+  --accent: #9b72cf;          /* 柔紫 */
+  --accent-light: #c4aee2;
+  --accent-bg: rgba(155, 114, 207, 0.1);
+  --success: #7ab89a;           /* 柔绿 */
+  --warning: #e0b87a;           /* 柔黄 */
+  --danger: #d98a8a;            /* 柔红 */
+
+  /* 毛玻璃与阴影 */
+  --blur: 20px;
+  --shadow-soft: 0 8px 32px rgba(100, 90, 120, 0.10);
+  --shadow-card: 0 2px 16px rgba(100, 90, 120, 0.07);
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  /* 字体 */
+  --font-main: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+}
+
+body {
+  font-family: var(--font-main);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  background-image:
+    radial-gradient(ellipse at 20% 10%, rgba(200, 180, 230, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 90%, rgba(180, 210, 200, 0.15) 0%, transparent 50%);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 全局毛玻璃卡片 */
+.glass-card {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+
+/* 圆润按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 50px;
+  font-size: 13px;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 4px 14px rgba(155, 114, 207, 0.35);
+}
+.btn-primary:hover {
+  background: #8a5fc4;
+  box-shadow: 0 6px 20px rgba(155, 114, 207, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: rgba(155, 114, 207, 0.08);
+  color: var(--accent);
+  border: 1px solid rgba(155, 114, 207, 0.2);
+}
+.btn-ghost:hover {
+  background: rgba(155, 114, 207, 0.15);
+}
+
+/* 输入框 */
+.input {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid rgba(200, 195, 215, 0.5);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: var(--font-main);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input:focus {
+  border-color: var(--accent-light);
+  box-shadow: 0 0 0 3px rgba(155, 114, 207, 0.12);
+}
+.input::placeholder {
+  color: var(--text-hint);
+}
+
+/* 标签徽章 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 50px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.badge-image { background: rgba(122, 162, 255, 0.15); color: #5b8def; }
+.badge-video { background: rgba(255, 162, 122, 0.15); color: #e08a5b; }
+.badge-music { background: rgba(255, 214, 122, 0.15); color: #d4a030; }
+.badge-t2i { background: rgba(180, 200, 255, 0.15); color: #6b8fd4; }
+.badge-i2i { background: rgba(200, 255, 200, 0.15); color: #50b050; }
+.badge-t2v { background: rgba(255, 200, 220, 0.15); color: #d4608a; }
+.badge-success { background: rgba(122, 184, 154, 0.15); color: #4a9e6e; }
+.badge-failed { background: rgba(217, 138, 138, 0.15); color: #c05050; }
+
+/* 进度条 */
+.progress-bar {
+  height: 6px;
+  border-radius: 50px;
+  background: rgba(200, 195, 215, 0.35);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 50px;
+  background: linear-gradient(90deg, var(--accent-light), var(--accent));
+  transition: width 0.5s ease;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(155, 114, 207, 0.2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(155, 114, 207, 0.35); }
