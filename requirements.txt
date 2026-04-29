@@ -1,2 +1,12 @@
+# 后端依赖
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+pymysql>=1.1.0
+sqlalchemy>=2.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
-requests>=2.28.0
+
+# 前端依赖（Node.js 项目，不在此文件管理）
+# 运行: npm create vite@latest frontend -- --template react
+# 然后: cd frontend && npm install && npm run dev
