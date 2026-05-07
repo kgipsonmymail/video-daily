@@ -115,13 +115,13 @@ cd frontend && npm run dev
 
 | 模型 | 每日限额 |
 |------|---------|
-| MiniMax-Hailuo-2.3 (T2V) | 2 |
-| MiniMax-Hailuo-2.3-Fast (I2V) | 2 |
-| MiniMax-Hailuo-02 (FL2V) | 2 |
-| S2V-01 (主体参考) | 2 |
+| Hailuo-2.3-Fast-768P 6s | 2 |
+| Hailuo-2.3-768P 6s | 2 |
 | image-01 | 120 |
+| music-2.5 | 4 |
 | music-2.6 | 100 |
 | music-cover | 100 |
+| lyrics_generation | 100 |
 
 ### 数据库写入规则
 
@@ -154,7 +154,7 @@ result.save_to_files("works/matrix_output")
 - `/query` — 高级资产查询，支持多条件 + 全文搜索
 - `/daily` — 每日总览，含今日额度和生成结果
 - `/queue` — 任务队列管理，提交 user/auto 任务
-- `/matrix` — 6×6 矩阵生成界面，批量生成图片
+- `/matrix` — 矩阵生成界面（T2I 图片矩阵 + I2I 批量图生图）
 - `/voices` — 音色样本管理，预览 T2S 效果
 
 ## 环境变量 (.env)

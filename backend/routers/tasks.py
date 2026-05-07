@@ -68,6 +68,10 @@ def create_task(data: TaskQueueCreate, db: Session = Depends(get_db)):
         notes=data.notes,
         image=data.image,
         image2=data.image2,
+        aspect_ratio=data.aspect_ratio,
+        duration=data.duration,
+        resolution=data.resolution,
+        is_instrumental=1 if data.is_instrumental else 0,
         quota_date=today,
     )
     db.add(task)

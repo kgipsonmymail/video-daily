@@ -14,12 +14,16 @@ router = APIRouter()
 
 @router.get("/configs", response_model=list[MatrixConfigResponse])
 def list_configs(db: Session = Depends(get_db)):
-    rows = db.execute(text("SELECT id, name, subjects_text, styles_text, theme, notes, created_at, COALESCE(prompt_base, '') FROM matrix_configs ORDER BY created_at DESC")).fetchall()
+    rows = db.execute(text("SELECT id, name, subjects_text, styles_text, theme, notes, created_at, COALESCE(prompt_base, ''), category, COALESCE(reference_image, ''), COALESCE(rows_count, 6), COALESCE(cols_count, 6) FROM matrix_configs ORDER BY created_at DESC")).fetchall()
     return [
         MatrixConfigResponse(
             id=r[0], name=r[1], subjects_text=r[2], styles_text=r[3],
             theme=r[4] or "giant-tree", notes=r[5], created_at=r[6],
             prompt_base=r[7] if len(r) > 7 else "",
+            category=r[8] if len(r) > 8 else "t2i",
+            reference_image=r[9] if len(r) > 9 else None,
+            rows_count=r[10] if len(r) > 10 else 6,
+            cols_count=r[11] if len(r) > 11 else 6,
         )
         for r in rows
     ]
@@ -28,23 +32,32 @@ def list_configs(db: Session = Depends(get_db)):
 @router.post("/configs", response_model=MatrixConfigResponse)
 def create_config(data: MatrixConfigCreate, db: Session = Depends(get_db)):
     prompt_base = getattr(data, "prompt_base", None) or ""
+    category = getattr(data, "category", None) or "t2i"
+    reference_image = getattr(data, "reference_image", None) or ""
+    rows_count = getattr(data, "rows_count", None) or 6
+    cols_count = getattr(data, "cols_count", None) or 6
     cur = db.execute(
         text(
-            "INSERT INTO matrix_configs (name, subjects_text, styles_text, theme, notes, prompt_base) "
-            "VALUES (:name, :sub, :sty, :theme, :notes, :pb)"
+            "INSERT INTO matrix_configs (name, subjects_text, styles_text, theme, notes, prompt_base, category, reference_image, rows_count, cols_count) "
+            "VALUES (:name, :sub, :sty, :theme, :notes, :pb, :cat, :ref, :rc, :cc)"
         ),
         {"name": data.name, "sub": data.subjects_text, "sty": data.styles_text,
-         "theme": data.theme, "notes": data.notes or "", "pb": prompt_base},
+         "theme": data.theme, "notes": data.notes or "", "pb": prompt_base,
+         "cat": category, "ref": reference_image, "rc": rows_count, "cc": cols_count},
     )
     db.commit()
     row = db.execute(
-        text("SELECT id, name, subjects_text, styles_text, theme, notes, created_at, COALESCE(prompt_base, '') FROM matrix_configs WHERE id = :id"),
+        text("SELECT id, name, subjects_text, styles_text, theme, notes, created_at, COALESCE(prompt_base, ''), category, COALESCE(reference_image, ''), COALESCE(rows_count, 6), COALESCE(cols_count, 6) FROM matrix_configs WHERE id = :id"),
         {"id": cur.lastrowid},
     ).fetchone()
     return MatrixConfigResponse(
         id=row[0], name=row[1], subjects_text=row[2], styles_text=row[3],
         theme=row[4] or "giant-tree", notes=row[5], created_at=row[6],
         prompt_base=row[7] if len(row) > 7 else "",
+        category=row[8] if len(row) > 8 else "t2i",
+        reference_image=row[9] if len(row) > 9 else None,
+        rows_count=row[10] if len(row) > 10 else 6,
+        cols_count=row[11] if len(row) > 11 else 6,
     )
 
 

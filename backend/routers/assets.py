@@ -183,3 +183,53 @@ def update_asset(asset_id: int, data: AssetUpdate, db: Session = Depends(get_db)
         is_favorite=r.is_favorite if r else 0,
         prompt_text="",
     )
+
+
+@router.get("/picker")
+def picker_assets(
+    modality: str = "image",
+    search: str | None = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    """
+    轻量图片选择器接口，返回图片资产列表（支持搜索）。
+    用于 i2i 矩阵等场景选择参考图。
+    """
+    sql = """
+        SELECT a.id, a.run_id, a.file_path, a.modality, a.sub_type,
+               a.aspect_ratio, a.seed, a.created_at, a.external_url,
+               r.theme, r.category, r.model, r.status, r.is_favorite,
+               p.text as prompt_text
+        FROM assets a
+        JOIN runs r ON r.id = a.run_id
+        LEFT JOIN prompts p ON p.id = a.prompt_id
+        WHERE a.modality = :modality
+    """
+    params: dict = {"modality": modality, "limit": limit}
+    if search:
+        sql += " AND p.text LIKE :search"
+        params["search"] = f"%{search}%"
+    sql += " ORDER BY a.created_at DESC LIMIT :limit"
+
+    rows = db.execute(text(sql), params).fetchall()
+    return [
+        AssetResponse(
+            id=row[0],
+            run_id=row[1],
+            file_path=row[2],
+            modality=row[3],
+            sub_type=row[4],
+            aspect_ratio=row[5],
+            seed=row[6],
+            created_at=row[7],
+            external_url=row[8],
+            theme=row[9],
+            category=row[10],
+            model=row[11],
+            status=row[12],
+            is_favorite=row[13],
+            prompt_text=row[14] or "",
+        )
+        for row in rows
+    ]

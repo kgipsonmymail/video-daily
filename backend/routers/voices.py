@@ -146,7 +146,7 @@ def preview_voice(req: VoicePreviewRequest, http_request: Request, db: Session =
     db.refresh(v)
 
     # 静态文件服务固定在 8002
-    origin = "http://localhost:8002"
+    origin = "http://localhost:8000"
     file_url = f"{origin}/files/{relative_path}"
     return {"id": v.id, "download_url": file_url, "voice_id": req.voice_id, "voice_name": req.voice_name}
 

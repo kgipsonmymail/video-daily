@@ -82,33 +82,39 @@ def _run_task(task: dict, client: MiniMaxClient) -> str | None:
 
     try:
         if cat == "t2i":
+            aspect_ratio = task.get("aspect_ratio", "16:9")
             paths, rid = run_t2i_task(client, prompt, variant="scheduler", model=model,
-                                       theme=theme, n=1, aspect_ratio="16:9")
+                                       theme=theme, n=1, aspect_ratio=aspect_ratio)
             return rid
         elif cat == "i2i":
             img_path, is_temp = _resolve_image_path(task.get("image"))
             if not img_path:
                 print("[SKIP] i2i missing image")
                 return None
+            aspect_ratio = task.get("aspect_ratio", "16:9")
             try:
                 paths, rid = run_i2i_task(client, prompt, img_path, variant="scheduler",
-                                          model=model, theme=theme)
+                                          model=model, theme=theme, aspect_ratio=aspect_ratio)
                 return rid
             finally:
                 if is_temp:
                     os.unlink(img_path)
         elif cat == "t2v":
+            duration = task.get("duration") or 6
+            resolution = task.get("resolution") or "768P"
             path, rid = run_t2v_task(client, prompt, variant="scheduler",
-                                      model=model, theme=theme, duration=6, resolution="768P")
+                                      model=model, theme=theme, duration=duration, resolution=resolution)
             return rid
         elif cat == "i2v":
             img_path, is_temp = _resolve_image_path(task.get("image"))
             if not img_path:
                 print("[SKIP] i2v missing image")
                 return None
+            duration = task.get("duration") or 6
+            resolution = task.get("resolution") or "768P"
             try:
                 path, rid = run_i2v_task(client, prompt, img_path, variant="scheduler",
-                                          model=model, theme=theme, duration=6, resolution="768P")
+                                          model=model, theme=theme, duration=duration, resolution=resolution)
                 return rid
             finally:
                 if is_temp:
@@ -119,9 +125,11 @@ def _run_task(task: dict, client: MiniMaxClient) -> str | None:
             if not img1 or not img2:
                 print("[SKIP] fl2v missing frames")
                 return None
+            duration = task.get("duration") or 6
+            resolution = task.get("resolution") or "768P"
             try:
                 path, rid = run_fl2v_task(client, prompt, img1, img2, variant="scheduler",
-                                           model=model, theme=theme, duration=6, resolution="768P")
+                                           model=model, theme=theme, duration=duration, resolution=resolution)
                 return rid
             finally:
                 if is_temp1:
@@ -133,17 +141,20 @@ def _run_task(task: dict, client: MiniMaxClient) -> str | None:
             if not img_path:
                 print("[SKIP] s2v missing subject image")
                 return None
+            duration = task.get("duration") or 6
+            resolution = task.get("resolution") or "768P"
             try:
                 path, rid = run_s2v_task(client, prompt, img_path, variant="scheduler",
-                                          model=model, theme=theme, duration=6, resolution="768P")
+                                          model=model, theme=theme, duration=duration, resolution=resolution)
                 return rid
             finally:
                 if is_temp:
                     os.unlink(img_path)
         elif cat == "music":
+            is_instrumental = bool(task.get("is_instrumental"))
             path, rid = run_music_task(client, prompt, variant="scheduler",
                                         model=model, theme=theme,
-                                        is_instrumental=False)
+                                        is_instrumental=is_instrumental)
             return rid
         else:
             print(f"[SKIP] unsupported category: {cat}")
@@ -192,7 +203,9 @@ def run_scheduler():
     # 按 priority 升序（user=1 先，auto=10 后），取所有 pending 任务
     tasks = session.execute(
         __import__("sqlalchemy").text(
-            "SELECT id, task_type, category, prompt_text, model, modality, image, image2 "
+            "SELECT id, task_type, category, prompt_text, model, modality, image, image2, "
+            "COALESCE(aspect_ratio, '16:9') as aspect_ratio, "
+            "duration, resolution, is_instrumental "
             "FROM task_queue "
             "WHERE quota_date = :qd AND status = 'pending' "
             "ORDER BY priority ASC, created_at ASC"

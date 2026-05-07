@@ -13,4 +13,7 @@ export const assetsApi = {
 
   update: (assetId: number, data: AssetUpdate) =>
     client.patch<AssetResponse>(`/assets/${assetId}`, data).then((r) => r.data),
+
+  picker: (params?: { search?: string; limit?: number }) =>
+    client.get<AssetResponse[]>("/assets/picker", { params }).then((r) => r.data),
 };

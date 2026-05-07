@@ -25,6 +25,248 @@ import json
 # 主题库：预定义各类主题的探索维度
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 植物主题库：6×6 矩阵主体
+# ─────────────────────────────────────────────────────────────────────────────
+
+PLANT_SUBJECTS = {
+    "多肉植物": [
+        "A cute chubby succulent with plump oval leaves, soft green color with pink tips, symmetric rosette formation, tiny roots visible at base",
+        "A rare blue succulent with powdery coating, geometric spiral leaf arrangement, morning dew drops on leaves",
+        "A cluster of small succulents in various greens, jade plant variety, compact globular shape, moss around base",
+        "A tall cactus with cylindrical arms, bright yellow flowers blooming at top, soft spines, desert pot",
+        "A tiny seedlings emerging from soil, two small cotyledon leaves, fresh sprouts, water droplets nearby",
+        "A hanging succulent with trailing stems, string of pearls plant, round bead-like leaves, aerial roots",
+    ],
+    "观叶植物": [
+        "A monstera leaf with dramatic splits and holes, deep glossy green, prominent veins, wet with raindrops",
+        "A large tropical palm leaf, feathery fronds, vibrant green, gentle curve, isolated on white",
+        "A snake plant with tall upright leaves, variegated yellow-green stripes, rigid sword shape, architectural",
+        "A fiddle leaf fig with large violin-shaped leaves, dark green, prominent veins, single stem, glossy",
+        "A Boston fern with cascading fronds, bright green delicate leaflets, natural arching shape, humid",
+        "A golden pothos with heart-shaped leaves, marbled yellow-green variegation, climbing vine habit",
+    ],
+    "花朵植物": [
+        "A single rose in full bloom, velvety red petals, green sepals, dew on petals, soft natural light",
+        "A bouquet of wildflowers, daisies and cornflowers mix, soft pastel colors, wild meadow vibes, airy",
+        "A sunflower face, large yellow petals radiating, dark brown center seeds, facing viewer directly",
+        "A cherry blossom branch, soft pink five-petaled flowers, delicate stamens, spring breeze feeling",
+        "A tulip from above, cup-shaped bloom, gradient pink to white, clean white background, symmetrical",
+        "A lotus flower emerging from water, pink petals partially open, green pad underneath, serene",
+    ],
+    "微型景观": [
+        "A tiny moss-covered rock in a forest floor setting, various moss types, miniature ferns, dew drops",
+        "A miniature landscape in a glass terrarium, tiny hills, small plants, gravel path, cozy enclosed",
+        "A single blade of grass with morning dew, macro close-up, water droplet as magnifier, green bokeh",
+        "A tiny toadstool mushroom, red cap with white spots, small yellow flowers nearby, fairy garden",
+        "A miniature willow tree in bonsai style, gnarled trunk, cascading branches, tiny green leaves",
+        "A patch of clover with one four-leaf clover, small white flowers, close ground-level view",
+    ],
+    "水果蔬菜": [
+        "A ripe tomato on the vine, bright red, green calyx, small yellow flowers nearby, garden setting",
+        "A bunch of grapes, deep purple-blue, waxy bloom on skin, large leaves behind, classical still life",
+        "A single strawberry with seeds, bright red, green hull with small leaves, water droplets, top-down",
+        "A cross-section of a citrus fruit, detailed pulp vesicles, bright orange, white pith boundary",
+        "A ear of corn, golden yellow kernels, green husk partially removed, rustic, warm lighting",
+        "A cabbage with layered leaves, pale green to white gradient, dewdrops on ruffled edges, serene",
+    ],
+    "藤本攀援": [
+        "A climbing ivy vine on a stone wall, dark green lobed leaves, aerial rootlets, aged stone texture",
+        "A wisteria branch with hanging purple flower clusters, delicate petals, flowing downward shape",
+        "A morning glory flower in full bloom, trumpet-shaped, rich purple-blue, green heart-shaped leaves",
+        "A grapevine with curly tendrils, large lobed leaves, small green grapes forming, Tuscan feeling",
+        "A sweet pea climbing strings, multicolored pink and white flowers, delicate butterfly shape",
+        "A pothos trail descending from top, variegated leaves, aerial roots hanging, architectural",
+    ],
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 游戏化风格模板库：完整自包含，无随机性
+#
+# 统一控制变量（每个模板已固定）：
+#   BG       — background  : 纯白 / 单色 / 渐变 / 黑背 / 纸背
+#   LIGHT    — lighting    : 方向（前/侧/顶/背/环境）+ 硬度（硬/柔/平）
+#   SHADOW   — shadows     : 无影 / 柔和 / 硬边
+#   ANGLE    — view angle  : 正面 / 3/4 / 等轴 / 俯视
+#   ENV      — environment : 孤立(白背) / 置景 / 环境
+#   OUTLINE  — outlines    : 无 / 细(1px) / 粗(3px) / 极粗(4px)
+#   PALETTE  — color       : 限制色板 / 灰度 / 彩色 / 霓虹
+# ─────────────────────────────────────────────────────────────────────────────
+
+GAME_STYLE_TEMPLATES = {
+    # ══════════════════════════════════════════════════════════════════════════
+    # 像素风格 Pixel Art
+    # ══════════════════════════════════════════════════════════════════════════
+    "像素-白背-前光-无影-正面-孤立": (
+        "pixel art style, pure white background, flat front lighting, "
+        "no shadow, centered subject, sprite-sheet front-facing pose, "
+        "16-bit retro RPG, limited 16-color palette, sharp square pixels, "
+        "no anti-aliasing, no blur, clean pixel grid, NES-SNES era sprite aesthetic"
+    ),
+    "像素-灰背-前光-无影-正面-孤立": (
+        "pixel art style, solid mid-grey background, flat front lighting, "
+        "no shadow, centered subject, sprite-sheet front-facing pose, "
+        "game-boy era monochrome palette, sharp square pixels, "
+        "no anti-aliasing, no blur, clean pixel grid"
+    ),
+    "像素-白背-侧光-柔影-正面-置景": (
+        "pixel art style, pure white background, 45-degree side light from upper-right, "
+        "soft penumbra shadow on ground (2px spread), centered subject, front-facing view, "
+        "16-bit retro RPG, limited 16-color palette, sharp square pixels, "
+        "dithering for shadow gradients, clean silhouette readable at small size"
+    ),
+    "像素-黑背-背光-无影-正面-孤立": (
+        "pixel art style, pure black background, rim lighting from behind creating silhouette outline, "
+        "no shadow on black ground, centered subject, front-facing hero pose, "
+        "16-bit retro RPG, limited 16-color palette, sharp square pixels, "
+        "high contrast silhouette, dramatic black background"
+    ),
+    # ══════════════════════════════════════════════════════════════════════════
+    # 卡通 / 赛璐璐 Cel-Shading
+    # ══════════════════════════════════════════════════════════════════════════
+    "卡通-白背-前光-无影-正面-孤立": (
+        "anime cel-shading style, pure white background, flat front lighting, "
+        "no shadow, centered subject, front-facing character pose, "
+        "bold black outlines (3px), flat solid color areas, "
+        "slightly saturated vibrant colors, clean lineart, "
+        "no gradient shading, vector-clean shapes, friendly and approachable"
+    ),
+    "卡通-白背-侧光-硬边-3/4-置景": (
+        "anime cel-shading style, pure white background, 45-degree side light from upper-left, "
+        "hard sharp shadow edge on opposite side, centered subject, 3/4 turn view, "
+        "bold black outlines (2px), flat solid color areas, "
+        "slightly saturated vibrant colors, clean lineart, "
+        "clear shadow boundary, game character portrait aesthetic"
+    ),
+    "卡通-彩背-前光-无影-正面-孤立": (
+        "anime cel-shading style, solid bright single-color background (blue), flat front lighting, "
+        "no shadow, centered subject, front-facing character pose, "
+        "bold black outlines (3px), flat solid color areas, "
+        "saturated vibrant colors, clean lineart, "
+        "no gradient shading, pop-art game card aesthetic"
+    ),
+    "卡通-渐变-环境光-柔影-正面-环境": (
+        "anime cel-shading style, soft two-tone gradient background (warm peach to sky blue), "
+        "soft ambient fill light, gentle ambient occlusion in folds only, "
+        "slight shadow beneath subject, centered subject, front-facing pose, "
+        "thin black outlines (1px), soft color transitions at shadow boundaries, "
+        "vibrant harmonious colors, Studio Ghibli aesthetic"
+    ),
+    # ══════════════════════════════════════════════════════════════════════════
+    # 低多边形 3D Low-Poly 3D
+    # ══════════════════════════════════════════════════════════════════════════
+    "低多-灰背-顶光-硬影-等轴-置景": (
+        "low-poly 3D render style, solid mid-grey background, top-down directional light, "
+        "sharp hard shadows at 45-degree angle (no blur), centered subject, true isometric top-down view, "
+        "geometric flat-faceted surfaces, each facet a single flat color, "
+        "cool neutral palette (slate grey, steel blue, muted teal), "
+        "clean hard-edge shadows on flat ground plane, no ambient occlusion, "
+        "modern indie game asset aesthetic"
+    ),
+    "低多-白背-前光-无影-正面-孤立": (
+        "low-poly 3D render style, pure white background, flat front lighting, "
+        "no shadow, centered subject, front-facing orthographic view, "
+        "geometric flat-faceted surfaces, each facet a single flat color, "
+        "clean white background, crisp sharp edges, no rounded bevels, "
+        "limited palette of 3-4 colors, toy-like minimalist aesthetic"
+    ),
+    "低多-彩背-顶光-柔影-等轴-置景": (
+        "low-poly 3D render style, solid saturated single-color background (warm coral), "
+        "top-down light, soft penumbra shadow beneath subject, centered subject, isometric view, "
+        "geometric flat-faceted surfaces catching angled light, bright facets vs shadow facets, "
+        "vibrant saturated palette, clean modern indie game aesthetic, "
+        "soft-edged shadow, no ambient occlusion"
+    ),
+    "低多-黑背-边光-无影-正面-孤立": (
+        "low-poly 3D render style, pure black background, rim edge lighting in white-blue, "
+        "no shadow, centered subject, front-facing orthographic view, "
+        "geometric flat-faceted silhouette, crisp dark outline against light edges, "
+        "monochromatic light grey facets against black, dramatic high-contrast, "
+        "character-select screen 3D portrait aesthetic"
+    ),
+    # ══════════════════════════════════════════════════════════════════════════
+    # 平面矢量 / 极简 Flat Vector / Minimalist
+    # ══════════════════════════════════════════════════════════════════════════
+    "矢量-白背-平光-无影-正面-孤立": (
+        "flat vector art style, pure white background, completely flat even front lighting, "
+        "no shadow, no gradient, no texture, centered symmetric composition, "
+        "orthographic direct front view, thick bold black outlines (4px), "
+        "solid flat color fills only, limited 4-color duotone palette, "
+        "clean geometric shapes, modern indie mobile game asset aesthetic"
+    ),
+    "矢量-彩背-平光-无影-正面-孤立": (
+        "flat vector art style, solid bright single-color background (warm orange), "
+        "completely flat even front lighting, no shadow, no gradient, no texture, "
+        "centered symmetric composition, orthographic direct front view, "
+        "thick bold black outlines (4px), solid flat color fills only, "
+        "warm complementary palette, modern indie mobile game asset aesthetic"
+    ),
+    "矢量-灰背-侧光-硬影-3/4-置景": (
+        "flat vector art style, mid-grey solid background, 45-degree directional light, "
+        "hard sharp shadow on opposite side (no blur), centered subject, 3/4 view, "
+        "no gradient shading, flat color areas only, bold black outlines (3px), "
+        "medium saturated palette, clean graphic design game poster aesthetic"
+    ),
+    # ══════════════════════════════════════════════════════════════════════════
+    # 霓虹 / 赛博朋克 Neon / Cyberpunk
+    # ══════════════════════════════════════════════════════════════════════════
+    "霓虹-黑背-边光-无影-正面-孤立": (
+        "neon wireframe art style, pure black background, glowing cyan and magenta rim edge lighting, "
+        "no shadow, centered subject, front-facing orthographic view, "
+        "glowing neon outlines on dark solid-fill subject, bloom effect on light edges, "
+        "dark subject with neon accent lines only, high contrast black and neon, "
+        "retro-futuristic arcade game character select aesthetic"
+    ),
+    "霓虹-渐变-霓虹-无影-正面-环境": (
+        "neon art style, dark purple to black vertical gradient background, "
+        "neon pink and cyan practical lights illuminating subject, no shadows, "
+        "centered subject, front-facing view, "
+        "glowing neon outlines and accent lines on dark fills, bloom on light sources, "
+        "dark atmospheric cyberpunk game environment, rain-wet reflective feel"
+    ),
+    # ══════════════════════════════════════════════════════════════════════════
+    # 漫画 / 厚涂 Comic / Painterly
+    # ══════════════════════════════════════════════════════════════════════════
+    "漫画-白背-戏剧-硬影-正面-置景": (
+        "comic book / graphic novel style, pure white background, dramatic single key light from upper-left, "
+        "hard crisp shadow edge, deep shadow on opposite side, centered subject, front-facing view, "
+        "bold black outlines (4px), halftone dot pattern in shadow areas, "
+        "high contrast saturated colors, bold graphic color blocking, "
+        "Marvel-DC style dynamic hero shot, no soft gradients"
+    ),
+    "厚涂-渐变-戏剧-柔影-3/4-环境": (
+        "painterly game concept art style, soft gradient background (warm amber to cool grey), "
+        "dramatic single directional light, soft feathered shadow edges, "
+        "centered subject, 3/4 view with depth, slight atmospheric perspective, "
+        "visible brushstroke texture, rich color transitions, "
+        "detailed but stylized, AAA game character concept art aesthetic"
+    ),
+    # ══════════════════════════════════════════════════════════════════════════
+    # 水彩 / 艺术插画 Watercolor / Artistic
+    # ══════════════════════════════════════════════════════════════════════════
+    "水彩-纸背-散射-无影-正面-孤立": (
+        "hand-painted watercolor illustration style, off-white textured paper background visible, "
+        "soft diffused ambient fill light, no harsh shadows, "
+        "loose off-center composition, front-facing pose, "
+        "wet-on-wet bleeding edges between colors, desaturated pastel palette, "
+        "visible paper grain texture, dreamy gentle indie game aesthetic"
+    ),
+    "浮世-米背-平光-无影-正面-环境": (
+        "Japanese ukiyo-e woodblock print style, warm beige paper background, flat even front lighting, "
+        "no shadow, asymmetric composition with generous empty space, traditional Japanese from-above perspective, "
+        "bold outlines, flat ink wash areas, muted indigo and cream with vermillion accent, "
+        "paper texture visible, traditional Japanese woodblock aesthetic"
+    ),
+}
+
+# 兼容性别名
+UNIFIED_STYLE_TEMPLATES = GAME_STYLE_TEMPLATES
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 主题库：预定义各类主题的探索维度
+# ─────────────────────────────────────────────────────────────────────────────
+
 TOPIC_LIBRARIES: dict[str, dict] = {
     "房车生活": {
         "angles": [
@@ -501,6 +743,92 @@ class MatrixBrainstormer:
         import random as _random
         self._random = _random
 
+    def brainstorm_unified(
+        self,
+        theme: str = "植物矩阵",
+        subject_category: str = "多肉植物",
+        requirements: str = "",
+        n_subjects: int = 6,
+        n_styles: int = 6,
+        emotion_weights: dict[str, float] | None = None,
+    ) -> MatrixResult:
+        """
+        生成统一风格矩阵（无随机性）：主体 × 风格
+        使用预定义的 UNIFIED_STYLE_TEMPLATES，每个风格模板已包含完整描述。
+
+        Args:
+            theme: 主题名称
+            subject_category: PLANT_SUBJECTS 中的主体类别
+            requirements: 需求关键词
+            n_subjects: 主体数量
+            n_styles: 风格数量
+            emotion_weights: 情绪权重
+        """
+        emotion_weights = emotion_weights or {"relaxed": 1, "fun": 1, "tense": 1, "mysterious": 1}
+        emotions = list(emotion_weights.keys())
+
+        # 获取植物主体
+        plant_groups = PLANT_SUBJECTS.get(subject_category, PLANT_SUBJECTS["多肉植物"])
+        subjects = list(plant_groups[:n_subjects])
+
+        # 获取统一风格模板（固定索引分布，覆盖不同风格类别）
+        style_keys = list(UNIFIED_STYLE_TEMPLATES.keys())
+        # 固定索引：像素(白/黑) / 卡通(白/渐变) / 低多(灰背) / 霓虹(黑背)
+        # 覆盖：BG(白/灰/黑/渐变) / LIGHT(前/背/顶/环境) / SHADOW(无/柔/硬) / ANGLE(正面/等轴/3/4)
+        fixed_style_indices = [0, 3, 4, 7, 8, 15]
+        selected_styles = []
+        for i in range(n_styles):
+            idx = fixed_style_indices[i] if i < len(fixed_style_indices) else i % len(style_keys)
+            key = style_keys[idx]
+            abbr = key.split("-")[0] if "-" in key else key[:4]
+            selected_styles.append({
+                "abbr": abbr,
+                "full": UNIFIED_STYLE_TEMPLATES[key],
+                "keywords": key,
+            })
+
+        # 构建 base_prompt
+        base_prompt = f"A beautiful {subject_category} plant, highly detailed, professional product photography"
+
+        # 构建矩阵
+        cells: list[MatrixCell] = []
+        for ri, subj in enumerate(subjects[:n_subjects]):
+            emotion = emotions[ri % len(emotions)]
+            enriched_subj = subj
+
+            for ci, style_entry in enumerate(selected_styles[:n_styles]):
+                full_style = style_entry["full"]
+                final_prompt = f"{enriched_subj}, {full_style}"
+
+                cells.append(
+                    MatrixCell(
+                        row=ri,
+                        col=ci,
+                        subject=subj,
+                        style=full_style,
+                        emotion=emotion,
+                        final_prompt=final_prompt,
+                        subject_angle=enriched_subj,
+                        style_keywords=style_entry.get("keywords", []),
+                    )
+                )
+
+        return MatrixResult(
+            theme=f"{theme} · {subject_category}",
+            requirements=requirements,
+            n_subjects=min(n_subjects, len(subjects)),
+            n_styles=min(n_styles, len(selected_styles)),
+            subjects=subjects[:n_subjects],
+            styles=selected_styles[:n_styles],
+            cells=cells,
+            base_prompt=base_prompt,
+            metadata={
+                "mode": "unified",
+                "subject_category": subject_category,
+                "emotion_weights": emotion_weights,
+            },
+        )
+
     def brainstorm(
         self,
         theme: str,
@@ -600,6 +928,11 @@ class MatrixBrainstormer:
         self, theme: str, n: int, requirements: str = ""
     ) -> list[str]:
         """从主题库中提取 + 组合生成多样主体"""
+        # 优先从 PLANT_SUBJECTS 获取（植物主题）
+        if theme in PLANT_SUBJECTS:
+            plants = PLANT_SUBJECTS[theme]
+            return list(plants[:n])
+
         lib = TOPIC_LIBRARIES.get(theme, TOPIC_LIBRARIES["通用"])
         base_angles = lib.get("angles", [])
 
@@ -688,6 +1021,10 @@ class MatrixBrainstormer:
             "房车生活": "A recreational vehicle (RV) scene, cinematic composition, highly detailed",
             "巨树世界": "A giant tree world: giant leaf as big as a town, normal-sized plants and trees surrounding",
         }
+        # 植物主题
+        if theme in PLANT_SUBJECTS:
+            return f"A beautiful {theme} plant, highly detailed, professional botanical photography"
+
         base = base_map.get(theme, f"A {theme} scene, cinematic composition")
 
         if requirements:
@@ -743,8 +1080,28 @@ class MatrixBrainstormer:
 if __name__ == "__main__":
     bm = MatrixBrainstormer()
 
-    # 示例：房车 6×6 矩阵
-    result = bm.brainstorm(
+    # ── 方式1：统一风格植物矩阵（推荐，无随机性）───────────────────────────
+    result = bm.brainstorm_unified(
+        theme="植物矩阵",
+        subject_category="多肉植物",
+        requirements="可爱、精致、治愈",
+        n_subjects=6,
+        n_styles=6,
+        emotion_weights={"relaxed": 2, "fun": 1, "tense": 1, "mysterious": 1},
+    )
+
+    print(result.summary())
+    result.save_to_files("works/2026-04-30/矩阵_多肉植物_unified")
+
+    print("\n=== 统一风格 Cell 示例 ===")
+    for cell in result.cells[:3]:
+        print(f"\n[{cell.row},{cell.col}] ({cell.emotion})")
+        print(f"  Subject: {cell.subject[:80]}")
+        print(f"  Style: {cell.style[:80]}")
+        print(f"  Prompt: {cell.final_prompt[:200]}")
+
+    # ── 方式2：传统随机风格矩阵（保留旧功能）───────────────────────────────
+    result2 = bm.brainstorm(
         theme="房车生活",
         requirements="放松、冒险、温馨、神秘",
         n_subjects=6,
@@ -753,10 +1110,7 @@ if __name__ == "__main__":
         emotion_weights={"relaxed": 2, "fun": 1, "tense": 1, "mysterious": 2},
     )
 
-    print(result.summary())
-    result.save_to_files("works/matrix_preview")
-
-    print("\n=== 示例 Cell ===")
-    for cell in result.cells[:3]:
-        print(f"\n[{cell.row},{cell.col}] ({cell.emotion})")
-        print(f"  {cell.final_prompt[:200]}")
+    print("\n\n" + "=" * 60)
+    print("传统随机风格矩阵")
+    print("=" * 60)
+    print(result2.summary())
