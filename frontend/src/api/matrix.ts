@@ -9,6 +9,10 @@ export interface MatrixConfig {
   notes: string | null;
   created_at: string;
   prompt_base?: string;
+  category: string;          // "t2i" | "i2i"
+  reference_image?: string | null;
+  rows_count: number;
+  cols_count: number;
 }
 
 export interface MatrixAsset {
@@ -50,7 +54,7 @@ export const matrixApi = {
   listConfigs: () =>
     client.get<MatrixConfig[]>("/matrix/configs").then((r) => r.data),
 
-  createConfig: (data: { name: string; subjects_text: string; styles_text: string; theme?: string; notes?: string; prompt_base?: string }) =>
+  createConfig: (data: { name: string; subjects_text: string; styles_text: string; theme?: string; notes?: string; prompt_base?: string; category?: string; reference_image?: string; rows_count?: number; cols_count?: number }) =>
     client.post<MatrixConfig>("/matrix/configs", data).then((r) => r.data),
 
   deleteConfig: (id: number) =>

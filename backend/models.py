@@ -61,7 +61,7 @@ class Prompt(Base):
     __allow_unmapped__ = True
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    text: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     lang: Mapped[str] = mapped_column(String(8), default="en")
     theme: Mapped[str] = mapped_column(String(64), default="giant-tree")
     run_id: Mapped[Optional[str]] = mapped_column(String(64), ForeignKey("runs.id"), nullable=True)
@@ -103,6 +103,10 @@ class TaskQueue(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # base64 image for i2i/i2v/s2v
     image2: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # base64 last-frame for fl2v
+    aspect_ratio: Mapped[str] = mapped_column(String(8), default="16:9")
+    duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)   # 视频秒数
+    resolution: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)  # 720P/768P/1080P
+    is_instrumental: Mapped[int] = mapped_column(Integer, default=0)  # 音乐：是否纯音乐
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     quota_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD，计划执行日期
 
@@ -113,7 +117,7 @@ class PromptHistory(Base):
     __allow_unmapped__ = True
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    text: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     direction: Mapped[str] = mapped_column(String(256), nullable=False)  # 所属方向/主题
     lang: Mapped[str] = mapped_column(String(8), default="en")
     theme: Mapped[str] = mapped_column(String(64), default="giant-tree")
@@ -134,6 +138,7 @@ class VoiceSample(Base):
     file_path: Mapped[str] = mapped_column(String(512), nullable=False)   # 本地文件路径
     file_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)  # 访问URL
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    generation_params: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON 参数字段
     is_favorite: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

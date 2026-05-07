@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { matrixApi, type MatrixConfig, type MatrixAsset, type MusicMatrixConfig } from "../api/matrix";
 import { generateApi } from "../api/generate";
+import { assetsApi } from "../api/assets";
+import type { AssetResponse } from "../types";
 
 const FILE_BASE = "http://localhost:8000/files";
 
@@ -305,7 +307,7 @@ function MatrixGrid({
 
 // 主组件
 export default function MatrixPage() {
-  const [tab, setTab] = useState<"image" | "music">("image");
+  const [tab, setTab] = useState<"image" | "image-i2i" | "music">("image");
   const [mode, setMode] = useState<"edit" | "view">("edit");
   const [activeConfigId, setActiveConfigId] = useState<number | null>(null);
 
@@ -339,7 +341,14 @@ export default function MatrixPage() {
   const subjects = useMemo(() => parseLines(subjectsText), [subjectsText]);
   const stylesLines = useMemo(() => parseLines(stylesText), [stylesText]);
   const styleLabels = useMemo(
-    () => stylesLines.map((s) => ({ abbr: s.split(",")[0].slice(0, 8).trim(), full: s })),
+    () => stylesLines.map((s) => {
+      // 格式: "标签 | full prompt" 或回退到 "full prompt"
+      const pipeIdx = s.indexOf("|");
+      if (pipeIdx > 0) {
+        return { abbr: s.slice(0, pipeIdx).trim(), full: s.slice(pipeIdx + 1).trim() };
+      }
+      return { abbr: s.split(",")[0].slice(0, 8).trim(), full: s };
+    }),
     [stylesLines]
   );
 
@@ -523,7 +532,7 @@ export default function MatrixPage() {
           🎮 素材矩阵
         </h2>
         <div style={{ display: "flex", gap: 6 }}>
-          {(["image", "music"] as const).map((t) => (
+          {(["image", "image-i2i", "music"] as const).map((t) => (
             <button key={t} onClick={() => { setTab(t); setMode("edit"); setCells({}); }}
               style={{
                 padding: "5px 14px", borderRadius: 50, fontSize: 12, fontWeight: 500,
@@ -532,13 +541,14 @@ export default function MatrixPage() {
                 border: tab === t ? "1px solid rgba(155,114,207,0.3)" : "1px solid rgba(200,195,215,0.3)",
                 color: tab === t ? "#7b4fc4" : "#8a8394",
               }}>
-              {t === "image" ? "🖼 图片" : "🎵 音乐"}
+              {t === "image" ? "🖼 T2I" : t === "image-i2i" ? "🖼 I2I" : "🎵 音乐"}
             </button>
           ))}
         </div>
       </div>
 
       {tab === "music" && <MusicMatrix />}
+      {tab === "image-i2i" && <ImageI2IMatrix />}
       {tab === "image" && (
         <>
           {mode === "edit" && (
@@ -773,7 +783,6 @@ function MusicMatrix() {
     refetchInterval: 5000,
   });
 
-  // 轮询时更新 cells
   useEffect(() => {
     if (!tracks.length) return;
     const newCells: Record<string, { status: string; file_path?: string; error?: string }> = {};
@@ -795,7 +804,6 @@ function MusicMatrix() {
       setActiveMusicConfigId(result.config_id);
       setTab2("history");
       refetchMusic();
-      // 初始空 cells 状态
       const initCells: Record<string, { status: string }> = {};
       for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++)
         initCells[`${r}-${c}`] = { status: "pending" };
@@ -808,7 +816,6 @@ function MusicMatrix() {
   function loadMusicConfig(cfg: MusicMatrixConfig) {
     setActiveMusicConfigId(cfg.id);
     setMusicName(cfg.name);
-    // 从 prompts_text 解析 row/col styles
     const rowsSet = new Set<number>();
     const colsSet = new Set<number>();
     const rowPrompts: Record<number, string> = {};
@@ -824,17 +831,15 @@ function MusicMatrix() {
     }
     const maxRow = Math.max(...rowsSet) + 1;
     const maxCol = Math.max(...colsSet) + 1;
-    const rows = Array.from({ length: maxRow }, (_, i) => rowPrompts[i] || "");
-    const cols = Array.from({ length: maxCol }, (_, i) => colPrompts[i] || "");
-    setRowStylesText(rows.join("\n"));
-    setColStylesText(cols.join("\n"));
+    const rowsArr = Array.from({ length: maxRow }, (_, i) => rowPrompts[i] || "");
+    const colsArr = Array.from({ length: maxCol }, (_, i) => colPrompts[i] || "");
+    setRowStylesText(rowsArr.join("\n"));
+    setColStylesText(colsArr.join("\n"));
     setTab2("history");
   }
 
   function playTrack(filePath: string) {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
+    if (audioRef.current) audioRef.current.pause();
     const url = `${FILE_BASE}/${filePath}`;
     setCurrentAudio(url);
     audioRef.current = new Audio(url);
@@ -842,11 +847,7 @@ function MusicMatrix() {
   }
 
   function stopPlayback() {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-      setCurrentAudio(null);
-    }
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; setCurrentAudio(null); }
   }
 
   const doneCount = Object.values(cells).filter((c) => c.status === "done").length;
@@ -856,14 +857,11 @@ function MusicMatrix() {
   return (
     <div>
       <audio ref={audioRef} onEnded={() => setCurrentAudio(null)} />
-
-      {/* 子 Tab */}
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
         {([["edit", "编辑模式"], ["history", "历史记录"]] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab2(t)}
             style={{
-              padding: "5px 14px", borderRadius: 50, fontSize: 12, fontWeight: 500,
-              cursor: "pointer",
+              padding: "5px 14px", borderRadius: 50, fontSize: 12, fontWeight: 500, cursor: "pointer",
               background: tab2 === t ? "rgba(155,114,207,0.18)" : "transparent",
               border: tab2 === t ? "1px solid rgba(155,114,207,0.3)" : "1px solid rgba(200,195,215,0.3)",
               color: tab2 === t ? "#7b4fc4" : "#8a8394",
@@ -882,16 +880,12 @@ function MusicMatrix() {
                 style={{ maxWidth: 300, width: "100%" }} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>
-                基础 Prompt
-              </label>
+              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>基础 Prompt</label>
               <input className="input" value={basePrompt} onChange={(e) => setBasePrompt(e.target.value)}
                 style={{ maxWidth: 400, width: "100%" }} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>
-                行风格（游戏场景，6个）
-              </label>
+              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>行风格（游戏场景，6个）</label>
               <textarea value={rowStylesText} onChange={(e) => setRowStylesText(e.target.value)}
                 rows={7} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px",
                   borderRadius: 12, border: "1px solid rgba(200,195,215,0.4)",
@@ -899,21 +893,15 @@ function MusicMatrix() {
                   fontFamily: "var(--font-main)", resize: "vertical", outline: "none" }} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>
-                列风格（乐器/编曲，6个）
-              </label>
+              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>列风格（乐器/编曲，6个）</label>
               <textarea value={colStylesText} onChange={(e) => setColStylesText(e.target.value)}
                 rows={7} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px",
                   borderRadius: 12, border: "1px solid rgba(200,195,215,0.4)",
                   background: "rgba(255,255,255,0.6)", fontSize: 12.5, color: "#3d3545",
                   fontFamily: "var(--font-main)", resize: "vertical", outline: "none" }} />
             </div>
-            {rowStyles.length !== 6 && (
-              <div style={{ fontSize: 11, color: "#d98a8a", marginBottom: 8 }}>请提供 6 个行风格（当前 {rowStyles.length} 个）</div>
-            )}
-            {colStyles.length !== 6 && (
-              <div style={{ fontSize: 11, color: "#d98a8a", marginBottom: 8 }}>请提供 6 个列风格（当前 {colStyles.length} 个）</div>
-            )}
+            {rowStyles.length !== 6 && <div style={{ fontSize: 11, color: "#d98a8a", marginBottom: 8 }}>请提供 6 个行风格（当前 {rowStyles.length} 个）</div>}
+            {colStyles.length !== 6 && <div style={{ fontSize: 11, color: "#d98a8a", marginBottom: 8 }}>请提供 6 个列风格（当前 {colStyles.length} 个）</div>}
             <button
               onClick={handleGenerate}
               disabled={rowStyles.length !== 6 || colStyles.length !== 6}
@@ -958,7 +946,6 @@ function MusicMatrix() {
             )}
           </div>
 
-          {/* 右侧预览 */}
           <div>
             {rowStyles.length === 6 && colStyles.length === 6 ? (
               <MusicGridPreview rowStyles={rowStyles} colStyleLabels={colStyleLabels} cells={cells}
@@ -991,18 +978,9 @@ function MusicMatrix() {
           {doneCount < total && (
             <div style={{ marginBottom: 14 }}>
               <button
-                onClick={async () => {
-                  try {
-                    await matrixApi.retryMusicMatrix(activeMusicConfigId);
-                    refetchTracks();
-                  } catch (e) { console.error(e); }
-                }}
-                style={{
-                  padding: "7px 16px", borderRadius: 10,
-                  background: "linear-gradient(135deg, rgba(155,114,207,0.85), rgba(196,174,226,0.65))",
-                  border: "none", color: "#fff", fontSize: 13, cursor: "pointer",
-                }}
-              >
+                onClick={async () => { try { await matrixApi.retryMusicMatrix(activeMusicConfigId); refetchTracks(); } catch (e) { console.error(e); } }}
+                style={{ padding: "7px 16px", borderRadius: 10, background: "linear-gradient(135deg, rgba(155,114,207,0.85), rgba(196,174,226,0.65))",
+                  border: "none", color: "#fff", fontSize: 13, cursor: "pointer" }}>
                 🔄 继续生成剩余 {total - doneCount} 首
               </button>
             </div>
@@ -1034,11 +1012,8 @@ function MusicGridPreview({
 }) {
   const FILE_BASE = "http://localhost:8000/files";
   const statusColor: Record<string, string> = {
-    idle: "rgba(200,195,215,0.15)",
-    pending: "rgba(155,114,207,0.1)",
-    generating: "rgba(155,114,207,0.15)",
-    done: "transparent",
-    failed: "rgba(220,150,150,0.08)",
+    idle: "rgba(200,195,215,0.15)", pending: "rgba(155,114,207,0.1)",
+    generating: "rgba(155,114,207,0.15)", done: "transparent", failed: "rgba(220,150,150,0.08)",
   };
 
   return (
@@ -1069,9 +1044,7 @@ function MusicGridPreview({
                   borderRadius: 8, padding: "5px 8px", height: 110,
                   display: "flex", flexDirection: "column", justifyContent: "center", gap: 3 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: "#6b6375" }}>#{r + 1}</div>
-                  <div style={{ fontSize: 9.5, color: "#9b8fc4", lineHeight: 1.3 }}>
-                    {row.split(",")[0]}
-                  </div>
+                  <div style={{ fontSize: 9.5, color: "#9b8fc4", lineHeight: 1.3 }}>{row.split(",")[0]}</div>
                 </div>
               </td>
               {colStyleLabels.map((_, c) => {
@@ -1080,17 +1053,12 @@ function MusicGridPreview({
                 const isPlaying = cell.status === "done" && currentAudio?.includes(`r${r}c${c}`);
                 return (
                   <td key={key} style={{ padding: 0 }}>
-                    <div
-                      style={{
-                        height: 110, borderRadius: 10, overflow: "hidden",
-                        background: statusColor[cell.status] || statusColor.idle,
-                        border: cell.status === "done"
-                          ? "1.5px solid rgba(155,114,207,0.3)"
-                          : "1.5px solid rgba(200,195,215,0.2)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        position: "relative",
-                      }}
-                    >
+                    <div style={{
+                      height: 110, borderRadius: 10, overflow: "hidden",
+                      background: statusColor[cell.status] || statusColor.idle,
+                      border: cell.status === "done" ? "1.5px solid rgba(155,114,207,0.3)" : "1.5px solid rgba(200,195,215,0.2)",
+                      display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
+                    }}>
                       {cell.status === "idle" && <span style={{ fontSize: 10, color: "#c4bfd0" }}>—</span>}
                       {cell.status === "pending" && <span style={{ fontSize: 10, color: "#9b72cf" }}>⏳</span>}
                       {cell.status === "generating" && (
@@ -1106,8 +1074,7 @@ function MusicGridPreview({
                             border: "none", borderRadius: 50, width: 40, height: 40,
                             fontSize: 18, color: "#fff", cursor: "pointer",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                          }}
-                        >
+                          }}>
                           {isPlaying ? "⏸" : "▶"}
                         </button>
                       )}
@@ -1124,6 +1091,481 @@ function MusicGridPreview({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── Image I2I Matrix ─────────────────────────────────────────────────────────
+
+function ImageI2IMatrix() {
+  const FILE_BASE = "http://localhost:8000/files";
+  const [tab2, setTab2] = useState<"edit" | "history">("edit");
+  const [name, setName] = useState("批量图生图矩阵");
+  const [promptBaseText, setPromptBaseText] = useState("");
+  const [subjectsText, setSubjectsText] = useState("");
+  const [stylesText, setStylesText] = useState("");
+  const [referenceImage, setReferenceImage] = useState<string>(""); // 文件路径
+  const [referencePreview, setReferencePreview] = useState<string>(""); // 预览 URL
+  const [cells, setCells] = useState<Record<string, Cell>>({});
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: configList = [], refetch: refetchConfigs } = useQuery({
+    queryKey: ["matrix-i2i-configs"],
+    queryFn: matrixApi.listConfigs,
+  });
+
+  const { data: pickerAssets = [], refetch: refetchPicker } = useQuery({
+    queryKey: ["asset-picker", pickerSearch],
+    queryFn: () => assetsApi.picker({ search: pickerSearch || undefined, limit: 40 }),
+    enabled: showPicker,
+  });
+
+  const subjects = useMemo(() => parseLines(subjectsText), [subjectsText]);
+  const stylesLines = useMemo(() => parseLines(stylesText), [stylesText]);
+  const styleLabels = useMemo(
+    () => stylesLines.map((s) => ({
+      abbr: s.split(",")[0].slice(0, 8).trim(),
+      full: s,
+    })),
+    [stylesLines]
+  );
+
+  function loadConfig(cfg: MatrixConfig) {
+    if (cfg.category !== "i2i") return;
+    setName(cfg.name);
+    setPromptBaseText(cfg.prompt_base || "");
+    setSubjectsText(cfg.subjects_text);
+    setStylesText(cfg.styles_text);
+    setReferenceImage(cfg.reference_image || "");
+    if (cfg.reference_image) {
+      setReferencePreview(`${FILE_BASE}/${cfg.reference_image}`);
+    }
+  }
+
+  async function handleUploadRef(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const result = await generateApi.upload(file);
+      setReferenceImage(result.file_path);
+      setReferencePreview(`${FILE_BASE}/${result.file_path}`);
+    } catch (err) {
+      console.error("上传参考图失败:", err);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function selectFromPicker(asset: AssetResponse) {
+    setReferenceImage(asset.file_path);
+    setReferencePreview(`${FILE_BASE}/${asset.file_path}`);
+    setShowPicker(false);
+  }
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    const cfg = await matrixApi.createConfig({
+      name: name.trim(),
+      subjects_text: subjectsText,
+      styles_text: stylesText,
+      theme: "rv-themed",
+      prompt_base: promptBaseText,
+      category: "i2i",
+      reference_image: referenceImage,
+      rows_count: subjects.length,
+      cols_count: stylesLines.length,
+    });
+    refetchConfigs();
+    return cfg;
+  }
+
+  async function handleGenerateCell(r: number, c: number) {
+    if (!referencePreview) return;
+    const subs = parseLines(subjectsText);
+    const stys = parseLines(stylesText);
+    if (r >= subs.length || c >= stys.length) return;
+
+    const subjectLine = subs[r];
+    const styleLine = stys[c];
+    const prompt = buildPrompt(promptBaseText, subjectLine, styleLine);
+    const variant = `${subjectLine.slice(0, 15).replace(/\s/g, "_")}-${styleLine.slice(0, 12).replace(/\s/g, "_")}`;
+
+    setCells((prev) => ({ ...prev, [`${r}-${c}`]: { row: r, col: c, status: "generating" } }));
+
+    let cfgId: number | undefined;
+    try {
+      // 读取参考图 base64
+      let refB64 = "";
+      if (referenceImage.startsWith("works/") || referenceImage.startsWith("works\\")) {
+        // 相对路径，fetch 它
+        const resp = await fetch(`${FILE_BASE}/${referenceImage}`);
+        const blob = await resp.blob();
+        refB64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        refB64 = referencePreview; // 已经是 data URL 或完整 URL
+      }
+
+      const result = await generateApi.image({
+        prompt,
+        model: "image-01",
+        aspect_ratio: "16:9",
+        n: 1,
+        variant,
+        theme: "rv-themed",
+        config_id: undefined,
+        matrix_name: name,
+        reference_image: refB64,
+      });
+      const asset: MatrixAsset = {
+        ...result.assets[0],
+        variant,
+        category: "i2i",
+        model: "image-01",
+        status: "success",
+        prompt_text: prompt,
+      };
+      setCells((prev) => ({ ...prev, [`${r}-${c}`]: { row: r, col: c, status: "done", asset } }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCells((prev) => ({ ...prev, [`${r}-${c}`]: { row: r, col: c, status: "error", error: msg } }));
+    }
+  }
+
+  async function handleGenerateAll() {
+    if (!referencePreview) return;
+    const subs = parseLines(subjectsText);
+    const stys = parseLines(stylesText);
+    if (subs.length === 0 || stys.length === 0) return;
+
+    let refB64 = "";
+    if (referenceImage.startsWith("works/") || referenceImage.startsWith("works\\")) {
+      const resp = await fetch(`${FILE_BASE}/${referenceImage}`);
+      const blob = await resp.blob();
+      refB64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } else {
+      refB64 = referencePreview;
+    }
+
+    for (let r = 0; r < subs.length; r++) {
+      for (let c = 0; c < stys.length; c++) {
+        const key = `${r}-${c}`;
+        if (cells[key]?.status === "done") continue;
+        const subjectLine = subs[r];
+        const styleLine = stys[c];
+        const prompt = buildPrompt(promptBaseText, subjectLine, styleLine);
+        const variant = `${subjectLine.slice(0, 15).replace(/\s/g, "_")}-${styleLine.slice(0, 12).replace(/\s/g, "_")}`;
+        setCells((prev) => ({ ...prev, [key]: { row: r, col: c, status: "generating" } }));
+        try {
+          const result = await generateApi.image({
+            prompt, model: "image-01", aspect_ratio: "16:9", n: 1,
+            variant, theme: "rv-themed", reference_image: refB64,
+          });
+          const asset: MatrixAsset = {
+            ...result.assets[0], variant, category: "i2i",
+            model: "image-01", status: "success", prompt_text: prompt,
+          };
+          setCells((prev) => ({ ...prev, [key]: { row: r, col: c, status: "done", asset } }));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setCells((prev) => ({ ...prev, [key]: { row: r, col: c, status: "error", error: msg } }));
+        }
+        await new Promise((r2) => setTimeout(r2, 800 + Math.random() * 1500));
+      }
+    }
+  }
+
+  function exportJson() {
+    const cfg = {
+      name, category: "i2i", reference_image: referenceImage,
+      subjects_text: subjectsText, styles_text: stylesText,
+      prompt_base: promptBaseText, theme: "rv-themed",
+      rows_count: subjects.length, cols_count: stylesLines.length,
+    };
+    const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${name}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importJson(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const cfg = JSON.parse(e.target!.result as string);
+        setName(cfg.name || "批量图生图矩阵");
+        setSubjectsText(cfg.subjects_text || "");
+        setStylesText(cfg.styles_text || "");
+        setPromptBaseText(cfg.prompt_base || "");
+        if (cfg.reference_image) {
+          setReferenceImage(cfg.reference_image);
+          setReferencePreview(`${FILE_BASE}/${cfg.reference_image}`);
+        }
+      } catch {
+        alert("无效的 JSON 文件");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  const i2iConfigs = configList.filter((c) => c.category === "i2i");
+  const doneCount = Object.values(cells).filter((c) => c.status === "done").length;
+  const total = subjects.length * stylesLines.length;
+  const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  return (
+    <div>
+      <input
+        type="file" accept="image/*" ref={fileInputRef}
+        style={{ display: "none" }}
+        onChange={handleUploadRef}
+      />
+
+      {/* 图片选择器浮层 */}
+      {showPicker && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(10,8,18,0.7)",
+          backdropFilter: "blur(8px)", zIndex: 500,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 20, padding: 24,
+            width: "90vw", maxWidth: 800, maxHeight: "80vh",
+            overflow: "hidden", display: "flex", flexDirection: "column",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: "#3d3545" }}>选择参考图</span>
+              <button onClick={() => setShowPicker(false)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
+            </div>
+            <input
+              className="input" placeholder="搜索图片 prompt..." value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.target.value)}
+              style={{ marginBottom: 14, maxWidth: 300 }}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, overflowY: "auto", flex: 1 }}>
+              {pickerAssets.filter((a) => a.modality === "image").map((asset) => (
+                <div key={asset.id}
+                  onClick={() => selectFromPicker(asset)}
+                  style={{ cursor: "pointer", borderRadius: 10, overflow: "hidden", border: "2px solid transparent" }}
+                >
+                  <img src={`${FILE_BASE}/${asset.file_path}`} alt=""
+                    style={{ width: "100%", height: 90, objectFit: "cover" }} />
+                  <div style={{ fontSize: 9, color: "#8a8394", padding: "4px 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {asset.prompt_text.slice(0, 30)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 子 Tab */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+        {([["edit", "编辑模式"], ["history", "历史配置"]] as const).map(([t, label]) => (
+          <button key={t} onClick={() => setTab2(t)}
+            style={{
+              padding: "5px 14px", borderRadius: 50, fontSize: 12, fontWeight: 500,
+              cursor: "pointer",
+              background: tab2 === t ? "rgba(155,114,207,0.18)" : "transparent",
+              border: tab2 === t ? "1px solid rgba(155,114,207,0.3)" : "1px solid rgba(200,195,215,0.3)",
+              color: tab2 === t ? "#7b4fc4" : "#8a8394",
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab2 === "edit" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+          {/* 左侧 */}
+          <div>
+            {/* 名称 */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>矩阵名称</label>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)}
+                style={{ maxWidth: 300, width: "100%" }} />
+            </div>
+
+            {/* 参考图 */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>参考图</label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ padding: "7px 14px", borderRadius: 10, background: "rgba(155,114,207,0.15)",
+                    border: "1px solid rgba(155,114,207,0.3)", color: "#7b4fc4", fontSize: 12, cursor: "pointer" }}>
+                  📤 上传参考图
+                </button>
+                <button
+                  onClick={() => setShowPicker(true)}
+                  style={{ padding: "7px 14px", borderRadius: 10, background: "rgba(255,255,255,0.5)",
+                    border: "1px solid rgba(200,195,215,0.4)", color: "#6b6375", fontSize: 12, cursor: "pointer" }}>
+                  🖼 从图库选择
+                </button>
+                {referencePreview && (
+                  <img src={referencePreview} alt="参考图"
+                    style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(155,114,207,0.3)" }} />
+                )}
+              </div>
+              {referenceImage && (
+                <div style={{ fontSize: 10, color: "#bdb9c8", marginTop: 4 }}>{referenceImage}</div>
+              )}
+            </div>
+
+            {/* Base Prompt */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>
+                基础描述（所有 prompt 共享的前缀，可选）
+              </label>
+              <textarea value={promptBaseText} onChange={(e) => setPromptBaseText(e.target.value)}
+                rows={2}
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px",
+                  borderRadius: 12, border: "1px solid rgba(155,114,207,0.35)",
+                  background: "rgba(155,114,207,0.06)", fontSize: 12.5, color: "#3d3545",
+                  fontFamily: "var(--font-main)", resize: "vertical", outline: "none" }}
+                placeholder="如：A cozy RV scene, cinematic, highly detailed" />
+            </div>
+
+            {/* 主体 */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label style={{ fontSize: 12, color: "#8a8394" }}>主体（每行一个）</label>
+                <span style={{ fontSize: 11, color: "#bdb9c8" }}>{subjects.length} 个</span>
+              </div>
+              <textarea value={subjectsText} onChange={(e) => setSubjectsText(e.target.value)}
+                rows={6}
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px",
+                  borderRadius: 12, border: "1px solid rgba(200,195,215,0.4)",
+                  background: "rgba(255,255,255,0.6)", fontSize: 12.5, color: "#3d3545",
+                  fontFamily: "var(--font-main)", resize: "vertical", outline: "none" }}
+                placeholder={"每行一个主体描述，如：\nA cozy cabin in a forest\nA mountain village at sunrise"} />
+            </div>
+
+            {/* 风格 */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label style={{ fontSize: 12, color: "#8a8394" }}>风格（每行一个）</label>
+                <span style={{ fontSize: 11, color: "#bdb9c8" }}>{stylesLines.length} 个</span>
+              </div>
+              <textarea value={stylesText} onChange={(e) => setStylesText(e.target.value)}
+                rows={5}
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px",
+                  borderRadius: 12, border: "1px solid rgba(200,195,215,0.4)",
+                  background: "rgba(255,255,255,0.6)", fontSize: 12.5, color: "#3d3545",
+                  fontFamily: "var(--font-main)", resize: "vertical", outline: "none" }}
+                placeholder={"每行一个风格描述，如：\nFantasy art, vibrant colors\nSoft watercolor, pastel tones"} />
+            </div>
+
+            {/* 操作 */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={async () => { await handleSave(); refetchConfigs(); }}
+                style={{ padding: "8px 16px", borderRadius: 10, background: "rgba(155,114,207,0.8)",
+                  border: "none", color: "#fff", fontSize: 13, cursor: "pointer" }}>
+                💾 保存配置
+              </button>
+              <button onClick={exportJson}
+                style={{ padding: "8px 14px", borderRadius: 10, background: "rgba(255,255,255,0.5)",
+                  border: "1px solid rgba(200,195,215,0.4)", color: "#6b6375", fontSize: 13, cursor: "pointer" }}>
+                📋 导出 JSON
+              </button>
+              <label style={{ padding: "8px 14px", borderRadius: 10, background: "rgba(255,255,255,0.5)",
+                border: "1px solid rgba(200,195,215,0.4)", color: "#6b6375", fontSize: 13, cursor: "pointer" }}>
+                📂 导入 JSON
+                <input type="file" accept=".json" style={{ display: "none" }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); }} />
+              </label>
+            </div>
+
+            {/* 历史配置 */}
+            {i2iConfigs.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#6b6375", marginBottom: 8 }}>历史配置</div>
+                {i2iConfigs.map((cfg) => (
+                  <div key={cfg.id}
+                    onClick={() => { loadConfig(cfg); setTab2("edit"); }}
+                    style={{
+                      padding: "10px 14px", borderRadius: 10, marginBottom: 6, cursor: "pointer",
+                      background: "rgba(255,255,255,0.5)",
+                      border: "1px solid rgba(200,195,215,0.25)",
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                    }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: "#3d3545", fontWeight: 500 }}>{cfg.name}</div>
+                      <div style={{ fontSize: 11, color: "#bdb9c8", marginTop: 2 }}>
+                        {cfg.rows_count}×{cfg.cols_count} · {cfg.reference_image?.split("/").pop() || "无参考图"} · {new Date(cfg.created_at).toLocaleDateString("zh-CN")}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); matrixApi.deleteConfig(cfg.id).then(() => refetchConfigs()); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#d98a8a", padding: "4px 8px" }}>
+                      🗑
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 右侧预览 */}
+          <div>
+            {!referencePreview ? (
+              <div style={{
+                background: "rgba(255,255,255,0.45)", borderRadius: 16, padding: "40px",
+                border: "1px dashed rgba(200,195,215,0.4)", textAlign: "center", color: "#bdb9c8", fontSize: 13,
+              }}>
+                请先上传或选择参考图
+              </div>
+            ) : subjects.length > 0 && stylesLines.length > 0 ? (
+              <MatrixGrid
+                subjects={subjects}
+                styles={styleLabels}
+                cells={cells}
+                onGenerateCell={handleGenerateCell}
+                onGenerateAll={handleGenerateAll}
+              />
+            ) : (
+              <div style={{
+                background: "rgba(255,255,255,0.45)", borderRadius: 16, padding: "40px",
+                border: "1px dashed rgba(200,195,215,0.4)", textAlign: "center", color: "#bdb9c8", fontSize: 13,
+              }}>
+                填写主体和风格后，这里将显示矩阵预览
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab2 === "history" && (
+        <div>
+          {doneCount > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: "#8a8394", marginBottom: 5 }}>
+                {doneCount}/{total} 已生成 {pct}%
+              </div>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          )}
+          <MatrixGrid
+            subjects={subjects}
+            styles={styleLabels}
+            cells={cells}
+            onGenerateCell={handleGenerateCell}
+            onGenerateAll={handleGenerateAll}
+          />
+        </div>
+      )}
     </div>
   );
 }

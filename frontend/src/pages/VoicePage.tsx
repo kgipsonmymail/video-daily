@@ -90,7 +90,11 @@ const LANG_LABELS: Record<string, string> = {
 };
 
 function getAudioAccessUrl(filePath: string): string {
-  return `http://localhost:8002/files/${filePath}`;
+  return `http://localhost:8000/files/${filePath}`;
+}
+
+function getAudioDownloadUrl(filePath: string): string {
+  return `http://localhost:8000/download/${filePath}`;
 }
 
 // ── Emotion options ────────────────────────────────────────────────
@@ -220,7 +224,7 @@ export default function VoicePage() {
     setErrorMsg(null);
     try {
       const script = TEST_SCRIPTS[voice.lang] || TEST_SCRIPTS.zh;
-      const resp = await fetch("http://localhost:8002/api/voices/preview", {
+      const resp = await fetch("/api/voices/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -277,7 +281,7 @@ export default function VoicePage() {
           const script = TEST_SCRIPTS[voice.lang] || TEST_SCRIPTS.zh;
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 180_000); // 3min timeout
-          const resp = await fetch("http://localhost:8002/api/voices/preview", {
+          const resp = await fetch("/api/voices/preview", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ voice_id: voice.voice_id, voice_name: voice.voice_name, lang: voice.lang, model: "speech-2.8-hd", script_text: script }),
@@ -587,6 +591,22 @@ function AudioStudioTab({ samples, playingId, pausedId, onPlayOrPause, onToggleF
     }
   }
 
+  function handleApplyConfig(params: VoiceSampleResponse["generation_params"]) {
+    if (!params) return;
+    if (params.speed !== undefined) setSpeed(params.speed);
+    if (params.vol !== undefined) setVol(params.vol);
+    if (params.pitch !== undefined) setPitch(params.pitch);
+    if (params.emotion !== undefined) setEmotion(params.emotion);
+    if (params.voice_modify?.sound_effects !== undefined) setSoundEffect(params.voice_modify.sound_effects);
+    if (params.audio_setting) {
+      if (params.audio_setting.audio_sample_rate !== undefined) setSampleRate(params.audio_setting.audio_sample_rate);
+      if (params.audio_setting.bitrate !== undefined) setBitrate(params.audio_setting.bitrate);
+      if (params.audio_setting.format !== undefined) setAudioFormat(params.audio_setting.format);
+      if (params.audio_setting.channel !== undefined) setChannels(params.audio_setting.channel);
+    }
+    if (params.language_boost !== undefined) setLanguageBoost(params.language_boost);
+  }
+
   // Filter audio studio history from samples
   const studioSamples = samples.filter((s) => s.notes === "audio_studio" || s.file_path.includes("audio_studio"));
 
@@ -879,6 +899,7 @@ function AudioStudioTab({ samples, playingId, pausedId, onPlayOrPause, onToggleF
               isPaused={pausedId === sample.id}
               onPlayOrPause={() => onPlayOrPause(sample.id, getAudioAccessUrl(sample.file_path))}
               onToggleFav={() => onToggleFav(sample)}
+              onApplyConfig={handleApplyConfig}
             />
           ))}
         </div>
@@ -997,15 +1018,29 @@ function VoiceCard({ voice, isPreviewing, generated, onPreview }: {
 
 // ── SampleCard ─────────────────────────────────────────────────────────
 
-function SampleCard({ sample, isPlaying, isPaused, onPlayOrPause, onToggleFav }: {
+function SampleCard({ sample, isPlaying, isPaused, onPlayOrPause, onToggleFav, onApplyConfig }: {
   sample: VoiceSampleResponse;
   isPlaying: boolean;
   isPaused: boolean;
   onPlayOrPause: () => void;
   onToggleFav: () => void;
+  onApplyConfig: (params: VoiceSampleResponse["generation_params"]) => void;
 }) {
   const langColor: Record<string, string> = { zh: "#7b4fc4", en: "#3b82f6", ja: "#ef4444" };
   const color = langColor[sample.lang] || "#7b4fc4";
+
+  const handleDownload = () => {
+    const url = getAudioDownloadUrl(sample.file_path);
+    const ext = "mp3";
+    const defaultName = `${sample.voice_name}_${sample.lang}_${new Date(sample.created_at).toLocaleDateString("zh-CN").replace(/\//g, "-")}.${ext}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = defaultName;
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   return (
     <div style={{
@@ -1027,8 +1062,15 @@ function SampleCard({ sample, isPlaying, isPaused, onPlayOrPause, onToggleFav }:
       </div>
 
       {sample.script_text && (
-        <div style={{ fontSize: 11, color: "#8a8394", marginBottom: 6, lineHeight: 1.45 }}>
-          "{sample.script_text.slice(0, 60)}{sample.script_text.length > 60 ? "…" : ""}"
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 6, lineHeight: 1.45 }}>
+          <span style={{ fontSize: 11, color: "#8a8394", flex: 1 }}>
+            "{sample.script_text.slice(0, 60)}{sample.script_text.length > 60 ? "…" : ""}"
+          </span>
+          <button
+            onClick={() => navigator.clipboard.writeText(sample.script_text)}
+            title="复制台词"
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "#7b4fc4", padding: "0 2px" }}
+          >📋</button>
         </div>
       )}
 
@@ -1051,6 +1093,26 @@ function SampleCard({ sample, isPlaying, isPaused, onPlayOrPause, onToggleFav }:
         >
           {isPlaying ? "⏸ 播放中" : isPaused ? "▶ 继续" : "▶ 播放"}
         </button>
+        <button onClick={handleDownload} style={{
+          padding: "4px 10px",
+          borderRadius: 8,
+          border: "none",
+          background: "rgba(123,79,196,0.1)",
+          color: "#7b4fc4",
+          fontSize: 12,
+          fontWeight: 500,
+          cursor: "pointer",
+        }}>↓ 下载</button>
+        <button onClick={() => onApplyConfig(sample.generation_params)} style={{
+          padding: "4px 10px",
+          borderRadius: 8,
+          border: "none",
+          background: "rgba(59,130,246,0.1)",
+          color: "#3b82f6",
+          fontSize: 12,
+          fontWeight: 500,
+          cursor: "pointer",
+        }}>⚙ 配置应用</button>
         <span style={{ fontSize: 11, color: "#bdb9c8" }}>
           {new Date(sample.created_at).toLocaleDateString("zh-CN")}
         </span>

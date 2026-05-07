@@ -39,7 +39,7 @@ export interface AudioGenerateResponse {
 
 export const audioApi = {
   generate: (params: AudioGenerateParams) =>
-    client.post<AudioGenerateResponse>("/audio/generate", params),
+    client.post<AudioGenerateResponse[]>("/audio/generate", params),
   listHistory: (params?: { lang?: string; limit?: number }) =>
     client.get<VoiceSampleResponse[]>("/audio/history", { params }),
 };

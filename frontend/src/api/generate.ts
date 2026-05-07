@@ -15,6 +15,7 @@ export const generateApi = {
     theme?: string;
     config_id?: number | null;
     matrix_name?: string | null;
+    reference_image?: string;   // base64 编码的参考图，用于 i2i
   }) =>
     client.post<{
       run_id: string;

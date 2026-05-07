@@ -66,14 +66,15 @@ def _charge_quota(db: Session, quota_date: str, model: str):
     )
 
 
-def _upsert_prompt(db: Session, text: str, theme: str) -> Prompt:
+def _upsert_prompt(db: Session, prompt_text: str, theme: str) -> Prompt:
+    from sqlalchemy import text as sql_text
     row = db.execute(
-        text("SELECT id FROM prompts WHERE text = :t"),
-        {"t": text}
+        sql_text("SELECT id FROM prompts WHERE text = :t"),
+        {"t": prompt_text}
     ).fetchone()
     if row:
         return db.query(Prompt).get(row[0])
-    p = Prompt(text=text, lang="en", theme=theme)
+    p = Prompt(text=prompt_text, lang="en", theme=theme)
     db.add(p)
     db.flush()
     return p
@@ -146,12 +147,16 @@ def generate_music(req: MusicGenerateRequest, db: Session = Depends(get_db)):
         payload: dict = {
             "model": req.model,
             "prompt": req.prompt,
-            "lyrics": req.lyrics,
             "is_instrumental": req.is_instrumental,
             "lyrics_optimizer": req.lyrics_optimizer,
             "output_format": req.output_format,
             "aigc_watermark": req.aigc_watermark,
         }
+        if req.lyrics:
+            payload["lyrics"] = req.lyrics
+        elif not req.is_instrumental:
+            # 无歌词且非纯音乐时，自动启用歌词优化（根据 prompt 生成歌词）
+            payload["lyrics_optimizer"] = True
         if req.audio_setting:
             payload["audio_setting"] = req.audio_setting
         if req.audio_url:
@@ -164,7 +169,7 @@ def generate_music(req: MusicGenerateRequest, db: Session = Depends(get_db)):
                 "Content-Type": "application/json",
             },
             json=payload,
-            timeout=60,
+            timeout=(10, 300),
         )
         resp.raise_for_status()
         data = resp.json()
@@ -191,7 +196,7 @@ def generate_music(req: MusicGenerateRequest, db: Session = Depends(get_db)):
             audio_bytes = bytes.fromhex(hex_audio)
             out_path.write_bytes(audio_bytes)
             rel_parts = out_path.relative_to(PROJECT_ROOT).parts
-            rel = str(Path(*rel_parts[1:]))
+            rel = "/".join(rel_parts[1:])
         else:
             audio_url = music_data.get("audio", "")
             if not audio_url:
@@ -203,7 +208,7 @@ def generate_music(req: MusicGenerateRequest, db: Session = Depends(get_db)):
             except Exception as dl_err:
                 raise Exception(f"Failed to download audio from {audio_url}: {dl_err}")
             rel_parts = out_path.relative_to(PROJECT_ROOT).parts
-            rel = str(Path(*rel_parts[1:]))
+            rel = "/".join(rel_parts[1:])
 
         asset = Asset(
             run_id=run_id,

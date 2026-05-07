@@ -182,6 +182,10 @@ class MatrixConfigCreate(BaseModel):
     theme: str = "giant-tree"
     notes: Optional[str] = None
     prompt_base: Optional[str] = None  # base prompt used for all cells
+    category: str = "t2i"              # "t2i" | "i2i"
+    reference_image: Optional[str] = None  # 参考图路径，i2i 时必填
+    rows_count: int = 6
+    cols_count: int = 6
 
 
 class MatrixConfigResponse(BaseModel):
@@ -193,6 +197,10 @@ class MatrixConfigResponse(BaseModel):
     notes: Optional[str]
     created_at: datetime
     prompt_base: str = ""
+    category: str = "t2i"
+    reference_image: Optional[str] = None
+    rows_count: int = 6
+    cols_count: int = 6
 
     class Config:
         from_attributes = True
@@ -229,6 +237,10 @@ class TaskQueueCreate(BaseModel):
     notes: Optional[str] = None
     image: Optional[str] = None   # base64 encoded image for i2v/fl2v/s2v/i2i
     image2: Optional[str] = None   # base64 last-frame for fl2v
+    aspect_ratio: str = "16:9"    # 图片比例，仅 t2i/i2i 生效
+    duration: Optional[int] = None  # 视频秒数，仅 t2v/i2v/fl2v/s2v 生效
+    resolution: Optional[str] = None  # 分辨率，仅视频类生效：720P/768P/1080P
+    is_instrumental: bool = False   # 音乐：是否纯音乐，仅 music 生效
 
 
 class TaskQueueUpdate(BaseModel):
@@ -252,6 +264,10 @@ class TaskQueueResponse(BaseModel):
     notes: Optional[str]
     created_at: datetime
     quota_date: str
+    aspect_ratio: str = "16:9"
+    duration: Optional[int] = None
+    resolution: Optional[str] = None
+    is_instrumental: bool = False
 
     class Config:
         from_attributes = True
@@ -312,6 +328,7 @@ class VoiceSampleResponse(BaseModel):
     file_path: str
     file_url: Optional[str]
     notes: Optional[str]
+    generation_params: Optional[dict] = None
     is_favorite: int
     created_at: datetime
 

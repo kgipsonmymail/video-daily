@@ -18,10 +18,12 @@ build/
 test_output.txt
 test_quick.py
 test_run.py
-works/photo/*
-works/video/*
-!works/photo/.gitkeep
-!works/video/.gitkeep
+
+# Works directory - all generated content
+works/
+
+# Ref directory - generated API samples
+ref/api/voice/audio_studio/
 
 # IDE
 .vscode/

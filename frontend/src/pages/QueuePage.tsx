@@ -14,6 +14,49 @@ const CATEGORIES = [
   { value: "music", label: "音乐生成", model_default: "music-2.6" },
 ];
 
+const ASPECT_RATIOS = [
+  { value: "1:1",   label: "正方",   w: 30, h: 30 },
+  { value: "16:9", label: "宽屏",   w: 40, h: 23 },
+  { value: "4:3",  label: "标准",   w: 36, h: 27 },
+  { value: "3:2",  label: "风光",   w: 38, h: 25 },
+  { value: "2:3",  label: "竖幅",   w: 20, h: 30 },
+  { value: "3:4",  label: "人像",   w: 23, h: 30 },
+  { value: "9:16", label: "手机",   w: 17, h: 30 },
+  { value: "21:9", label: "带鱼",   w: 40, h: 17 },
+];
+
+function AspectBox({ w, h, selected }: { w: number; h: number; selected: boolean }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+      cursor: "pointer",
+    }}>
+      <div style={{
+        width: w, height: h,
+        borderRadius: 3,
+        background: selected
+          ? "linear-gradient(135deg, rgba(155,114,207,0.8), rgba(196,174,226,0.6))"
+          : "rgba(155,114,207,0.18)",
+        border: selected ? "1.5px solid rgba(155,114,207,0.6)" : "1.5px solid rgba(155,114,207,0.25)",
+        transition: "all 0.15s",
+        boxShadow: selected ? "0 2px 8px rgba(155,114,207,0.3)" : "none",
+      }} />
+      <span style={{ fontSize: 9, color: selected ? "#7b4fc4" : "#9b8fc4", fontWeight: selected ? 600 : 400 }}>
+        {w}:{h}
+      </span>
+    </div>
+  );
+}
+
+const VIDEO_DURATIONS = [6, 10];
+
+const VIDEO_RESOLUTIONS = [
+  { value: "512P", label: "512P" },
+  { value: "720P", label: "720P" },
+  { value: "768P", label: "768P" },
+  { value: "1080P", label: "1080P" },
+];
+
 const STATUS_COLORS: Record<string, string> = {
   pending: "#8a8394",
   running: "#9b72cf",
@@ -46,6 +89,10 @@ export default function QueuePage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageAssetPath, setImageAssetPath] = useState<string | null>(null);
   const [imageAssetPath2, setImageAssetPath2] = useState<string | null>(null);
+  const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [duration, setDuration] = useState(6);
+  const [resolution, setResolution] = useState("768P");
+  const [isInstrumental, setIsInstrumental] = useState(false);
 
   // Auto 生成
   const [direction, setDirection] = useState("");
@@ -64,7 +111,7 @@ export default function QueuePage() {
   });
 
   const createMut = useMutation({
-    mutationFn: async (data: { category: string; prompt_text: string; model: string; notes?: string; image?: string; image2?: string }) => {
+    mutationFn: async (data: { category: string; prompt_text: string; model: string; notes?: string; image?: string; image2?: string; aspect_ratio?: string }) => {
       return tasksApi.create(data);
     },
     onSuccess: () => {
@@ -106,6 +153,12 @@ export default function QueuePage() {
     setPickerOpen(false);
     const found = CATEGORIES.find((x) => x.value === c);
     if (found) setModel(found.model_default);
+    if (c !== "t2i" && c !== "i2i") setAspectRatio("16:9");
+    if (c !== "t2v" && c !== "i2v" && c !== "fl2v" && c !== "s2v") {
+      setDuration(6);
+      setResolution("768P");
+    }
+    if (c !== "music") setIsInstrumental(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -130,7 +183,7 @@ export default function QueuePage() {
       image2Path = res.file_path;
     }
 
-    createMut.mutate({ category: cat, prompt_text: prompt.trim(), model, notes: notes.trim() || undefined, image: imagePath, image2: image2Path });
+    createMut.mutate({ category: cat, prompt_text: prompt.trim(), model, notes: notes.trim() || undefined, image: imagePath, image2: image2Path, aspect_ratio: aspectRatio, duration: duration, resolution: resolution, is_instrumental: isInstrumental });
   }
 
   return (
@@ -235,6 +288,100 @@ export default function QueuePage() {
                   ) : null}
                 </select>
               </div>
+
+              {/* 图片比例（仅 t2i / i2i） */}
+              {(cat === "t2i" || cat === "i2i") && (
+                <div>
+                  <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 8, display: "block" }}>输出比例</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "flex-end" }}>
+                    {ASPECT_RATIOS.map((r) => (
+                      <div
+                        key={r.value}
+                        onClick={() => setAspectRatio(r.value)}
+                        style={{
+                          display: "flex", flexDirection: "column", alignItems: "center",
+                          cursor: "pointer",
+                          padding: "8px 10px", borderRadius: 10,
+                          background: aspectRatio === r.value ? "rgba(155,114,207,0.08)" : "transparent",
+                          border: aspectRatio === r.value ? "1px solid rgba(155,114,207,0.3)" : "1px solid transparent",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <AspectBox w={r.w} h={r.h} selected={aspectRatio === r.value} />
+                        <span style={{ fontSize: 9, color: aspectRatio === r.value ? "#7b4fc4" : "#9b8fc4", marginTop: 4, fontWeight: 500 }}>
+                          {r.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 视频参数（仅 t2v / i2v / fl2v / s2v） */}
+              {(cat === "t2v" || cat === "i2v" || cat === "fl2v" || cat === "s2v") && (
+                <>
+                  <div>
+                    <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>视频时长</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {VIDEO_DURATIONS.map((d) => (
+                        <div
+                          key={d}
+                          onClick={() => setDuration(d)}
+                          style={{
+                            padding: "5px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                            background: duration === d ? "rgba(155,114,207,0.2)" : "rgba(255,255,255,0.5)",
+                            color: duration === d ? "#7b4fc4" : "#8a8394",
+                            border: duration === d ? "1px solid rgba(155,114,207,0.35)" : "1px solid rgba(200,195,215,0.3)",
+                            fontWeight: duration === d ? 600 : 400,
+                          }}
+                        >
+                          {d}秒
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>分辨率</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {VIDEO_RESOLUTIONS.map((r) => (
+                        <div
+                          key={r.value}
+                          onClick={() => setResolution(r.value)}
+                          style={{
+                            padding: "5px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                            background: resolution === r.value ? "rgba(155,114,207,0.2)" : "rgba(255,255,255,0.5)",
+                            color: resolution === r.value ? "#7b4fc4" : "#8a8394",
+                            border: resolution === r.value ? "1px solid rgba(155,114,207,0.35)" : "1px solid rgba(200,195,215,0.3)",
+                            fontWeight: resolution === r.value ? 600 : 400,
+                          }}
+                        >
+                          {r.label}
+                        </div>
+                      ))}
+                    </div>
+                    {cat === "i2v" && (
+                      <div style={{ fontSize: 11, color: "#b0a8bc", marginTop: 4 }}>
+                        注：输出比例由参考图比例决定
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* 音乐参数（仅 music） */}
+              {cat === "music" && (
+                <div>
+                  <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>
+                    <input
+                      type="checkbox"
+                      checked={isInstrumental}
+                      onChange={(e) => setIsInstrumental(e.target.checked)}
+                      style={{ marginRight: 6 }}
+                    />
+                    纯音乐（无人声）
+                  </label>
+                </div>
+              )}
 
               {/* 图片上传/选择（i2i / i2v） */}
               {needsImage && (

@@ -20,14 +20,14 @@ finally:
     conn.close()
 
 from backend.models import Base
-from backend.database import engine
+from backend.database import engine, SessionLocal
 Base.metadata.create_all(bind=engine)
 print("[OK] All tables created")
 
-# 确保 music_matrix_configs 表存在
-from backend.database import get_db
-with get_db() as db:
-    from sqlalchemy import text
+from sqlalchemy import text
+db = SessionLocal()
+try:
+    # 确保 music_matrix_configs 表存在
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS music_matrix_configs (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -38,5 +38,39 @@ with get_db() as db:
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """))
+
+    # 扩展 matrix_configs 表（i2i 批量图生图支持）
+    for col_def in [
+        "category VARCHAR(16) DEFAULT 't2i'",
+        "reference_image TEXT",
+        "rows_count INT DEFAULT 6",
+        "cols_count INT DEFAULT 6",
+    ]:
+        col_name = col_def.split()[0]
+        try:
+            db.execute(text(f"ALTER TABLE matrix_configs ADD COLUMN {col_def}"))
+            print(f"[OK] matrix_configs.{col_name} added")
+        except Exception as e:
+            print(f"[SKIP] matrix_configs.{col_name}: {e}")
+
     db.commit()
-    print("[OK] music_matrix_configs table ensured")
+finally:
+    db.close()
+
+# 扩展 task_queue 表（新增参数列）
+_db = SessionLocal()
+try:
+    for col_def, col_name in [
+        ("ADD COLUMN aspect_ratio VARCHAR(8) DEFAULT '16:9'", "aspect_ratio"),
+        ("ADD COLUMN duration INT DEFAULT 6", "duration"),
+        ("ADD COLUMN resolution VARCHAR(8) DEFAULT '768P'", "resolution"),
+        ("ADD COLUMN is_instrumental INT DEFAULT 0", "is_instrumental"),
+    ]:
+        try:
+            _db.execute(text(f"ALTER TABLE task_queue {col_def}"))
+            _db.commit()
+            print(f"[OK] task_queue.{col_name} added")
+        except Exception as e:
+            print(f"[SKIP] task_queue.{col_name}: {e}")
+finally:
+    _db.close()

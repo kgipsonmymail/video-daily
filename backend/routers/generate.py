@@ -68,6 +68,7 @@ class ImageGenerateRequest(BaseModel):
     theme: str = "giant-tree"
     config_id: int | None = None
     matrix_name: str | None = None
+    reference_image: str | None = None  # base64 data URL or HTTP URL，用于 i2i
 
 
 class ImageGenerateResponse(BaseModel):
@@ -142,7 +143,8 @@ def generate_image(req: ImageGenerateRequest, db: Session = Depends(get_db)):
     settings = get_settings()
     ts = _ts_prefix()
     today = date.today().isoformat()
-    run_id = f"{ts}__{req.theme}__{'t2i'}__{_slug(req.variant, 15)}__v001"
+    category = "i2i" if req.reference_image else "t2i"
+    run_id = f"{ts}__{req.theme}__{category}__{_slug(req.variant, 15)}__v001"
 
     try:
         # upsert prompt
@@ -152,7 +154,7 @@ def generate_image(req: ImageGenerateRequest, db: Session = Depends(get_db)):
         run = Run(
             id=run_id,
             theme=req.theme,
-            category="t2i",
+            category=category,
             model=req.model,
             variant=req.variant,
             status="running",
@@ -164,13 +166,15 @@ def generate_image(req: ImageGenerateRequest, db: Session = Depends(get_db)):
         db.flush()
 
         # 调用 MiniMax API
-        payload = {
+        payload: dict = {
             "model": req.model,
             "prompt": req.prompt,
             "aspect_ratio": req.aspect_ratio,
             "n": req.n,
             "response_format": "url",
         }
+        if req.reference_image:
+            payload["subject_reference"] = [{"type": "character", "image_file": req.reference_image}]
         resp = _requests.post(
             "https://api.minimaxi.com/v1/image_generation",
             headers={
@@ -195,11 +199,12 @@ def generate_image(req: ImageGenerateRequest, db: Session = Depends(get_db)):
         _mark_run(db, run_id, "success", api_resp_id=api_id)
 
         # 扣减额度
-        _charge_quota(db, today, req.model, n=len(image_urls), category="t2i")
+        _charge_quota(db, today, req.model, n=len(image_urls), category=category)
 
         # 保存目录
         proj_root = Path(__file__).parent.parent.parent
-        out_dir = proj_root / "works" / today / "assets" / "images" / "t2i"
+        sub_type = "i2i" if category == "i2i" else "t2i"
+        out_dir = proj_root / "works" / today / "assets" / "images" / sub_type
         out_dir.mkdir(parents=True, exist_ok=True)
 
         created_assets = []
@@ -220,7 +225,7 @@ def generate_image(req: ImageGenerateRequest, db: Session = Depends(get_db)):
                 prompt_id=prompt_row.id,
                 file_path=rel,
                 modality="image",
-                sub_type="t2i",
+                sub_type=sub_type,
                 aspect_ratio=req.aspect_ratio,
             )
             db.add(asset)
@@ -230,7 +235,7 @@ def generate_image(req: ImageGenerateRequest, db: Session = Depends(get_db)):
                 "run_id": run_id,
                 "file_path": rel,
                 "modality": "image",
-                "sub_type": "t2i",
+                "sub_type": sub_type,
                 "aspect_ratio": req.aspect_ratio,
                 "seed": None,
                 "created_at": asset.created_at.isoformat() if asset.created_at else "",

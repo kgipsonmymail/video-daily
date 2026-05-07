@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models import Base
@@ -80,13 +80,59 @@ def health_check():
     return {"status": "ok", "message": "Video Daily API 运行正常"}
 
 
-@app.get("/files/{file_path:path}")
-def serve_file(file_path: str):
+@app.get("/download/{file_path:path}")
+def download_file(file_path: str):
     """
-    提供本地文件访问服务
-    file_path 格式: works/2026-04-24/assets/images/t2i/xxx.png
+    提供文件下载服务，浏览器访问时弹出系统"另存为"对话框
     """
+    import os, urllib.parse
     full_path = PROJECT_ROOT / file_path
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
-    return FileResponse(full_path)
+    _, ext = os.path.splitext(file_path)
+    media_type = {
+        ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg",
+        ".flac": "audio/flac", ".pcm": "audio/pcm",
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".mp4": "video/mp4", ".webm": "video/webm",
+    }.get(ext.lower(), "application/octet-stream")
+    filename = urllib.parse.quote(os.path.basename(file_path))
+    contents = full_path.read_bytes()
+    return Response(
+        content=contents,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}",
+            "Content-Length": str(len(contents)),
+        },
+    )
+
+
+@app.get("/files/{file_path:path}")
+def serve_file(file_path: str):
+    """
+    提供本地文件访问服务（浏览器直接播放/预览）
+    """
+    import os
+    full_path = PROJECT_ROOT / file_path
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    media_types = {
+        ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg",
+        ".flac": "audio/flac", ".pcm": "audio/pcm",
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".mp4": "video/mp4", ".webm": "video/webm",
+    }
+    _, ext = os.path.splitext(file_path)
+    media_type = media_types.get(ext.lower(), "application/octet-stream")
+    contents = full_path.read_bytes()
+    return Response(
+        content=contents,
+        media_type=media_type,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Content-Length": str(len(contents)),
+        },
+    )

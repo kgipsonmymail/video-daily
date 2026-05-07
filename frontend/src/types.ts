@@ -139,6 +139,16 @@ export interface VoiceSampleResponse {
   file_path: string;
   file_url: string | null;
   notes: string | null;
+  generation_params?: {
+    speed?: number;
+    vol?: number;
+    pitch?: number;
+    emotion?: string;
+    voice_modify?: { pitch?: number; intensity?: number; timbre?: number; sound_effects?: string };
+    audio_setting?: { audio_sample_rate?: number; bitrate?: number; format?: string; channel?: number };
+    language_boost?: string;
+    model?: string;
+  } | null;
   is_favorite: number;
   created_at: string;
 }

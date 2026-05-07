@@ -499,7 +499,7 @@ function SingleMusicTab() {
                   {result.run_id}
                 </div>
               </div>
-              <AudioPlayer src={`${FILE_BASE}/${result.file_path}`} />
+              <AudioPlayer src={`${FILE_BASE}/${result.file_path.replace(/\\/g, "/")}`} />
               <div style={{ marginTop: 10 }}>
                 <button
                   onClick={importFromResult}
@@ -571,319 +571,6 @@ function SingleMusicTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Matrix music generation tab
-// ─────────────────────────────────────────────────────────────────────────────
-interface MusicCell {
-  row: number;
-  col: number;
-  status: "idle" | "generating" | "done" | "error";
-  file_path?: string;
-  error?: string;
-  prompt_text?: string;
-  run_id?: string;
-}
-
-function MatrixMusicTab() {
-  const [basePrompt, setBasePrompt] = useState("巨树世界，神秘而宁静");
-  const [promptRows, setPromptRows] = useState("欢快明亮的旋律\n忧郁沉思的旋律\n史诗般的壮阔\n轻松悠闲的氛围");
-  const [styleCols, setStyleCols] = useState("民谣风格\n流行风格\n古典风格\n电子风格");
-  const [isInstrumental, setIsInstrumental] = useState(true);
-  const [model, setModel] = useState("music-2.6");
-  const [cells, setCells] = useState<Record<string, MusicCell>>({});
-
-  const rows = useMemo(() => parseLines(promptRows), [promptRows]);
-  const cols = useMemo(() => parseLines(styleCols), [styleCols]);
-
-  function buildCellPrompt(r: number, c: number): string {
-    return buildPrompt(basePrompt, `${rows[r]}，${cols[c]}`);
-  }
-
-  async function generateCell(r: number, c: number) {
-    const key = `${r}-${c}`;
-    setCells((prev) => ({ ...prev, [key]: { row: r, col: c, status: "generating" } }));
-    try {
-      const prompt = buildCellPrompt(r, c);
-      const resp = await musicApi.generate({
-        prompt,
-        model,
-        lyrics: "",
-        is_instrumental: true,
-        output_format: "url",
-        variant: `row${r}-col${c}`,
-        theme: "giant-tree",
-      });
-      const asset = resp.assets[0];
-      setCells((prev) => ({
-        ...prev,
-        [key]: { row: r, col: c, status: "done", file_path: asset.file_path, prompt_text: prompt, run_id: resp.run_id },
-      }));
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setCells((prev) => ({ ...prev, [key]: { row: r, col: c, status: "error", error: msg } }));
-    }
-  }
-
-  async function generateAll() {
-    for (let r = 0; r < rows.length; r++) {
-      for (let c = 0; c < cols.length; c++) {
-        const key = `${r}-${c}`;
-        if (cells[key]?.status === "done" || cells[key]?.status === "generating") continue;
-        await generateCell(r, c);
-        // Random delay to avoid rate limit
-        await new Promise((res) => setTimeout(res, 800 + Math.random() * 1500));
-      }
-    }
-  }
-
-  const doneCount = Object.values(cells).filter((c) => c.status === "done").length;
-  const total = rows.length * cols.length;
-  const isRunning = Object.values(cells).some((c) => c.status === "generating");
-  const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-
-  function MatrixCell({ cell }: { cell: MusicCell }) {
-    const [expanded, setExpanded] = useState(false);
-    const bgMap: Record<string, string> = {
-      idle: "rgba(200,195,215,0.15)",
-      generating: "rgba(155,114,207,0.1)",
-      done: "transparent",
-      error: "rgba(220,150,150,0.08)",
-    };
-
-    return (
-      <div
-        onClick={() => cell.status === "done" && setExpanded(!expanded)}
-        style={{
-          minHeight: 80, borderRadius: 10, overflow: "hidden",
-          background: bgMap[cell.status],
-          border: cell.status === "done"
-            ? "1.5px solid rgba(155,114,207,0.3)"
-            : "1.5px solid rgba(200,195,215,0.2)",
-          cursor: cell.status === "done" ? "pointer" : "default",
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          transition: "all 0.2s", position: "relative", padding: "8px 4px",
-        }}
-      >
-        {cell.status === "idle" && (
-          <span style={{ fontSize: 10, color: "#c4bfd0" }}>—</span>
-        )}
-        {cell.status === "generating" && (
-          <div style={{ fontSize: 11, color: "#9b72cf", textAlign: "center" }}>
-            <div style={{ fontSize: 14 }}>⏳</div>
-            <div style={{ marginTop: 3 }}>生成中</div>
-          </div>
-        )}
-        {cell.status === "done" && (
-          <div style={{ fontSize: 11, color: "#7b4fc4", textAlign: "center" }}>
-            <div>🎵</div>
-            {expanded && (
-              <AudioPlayer src={`${FILE_BASE}/${cell.file_path}`} />
-            )}
-          </div>
-        )}
-        {cell.status === "error" && (
-          <div title={cell.error || "失败"} style={{ fontSize: 10, color: "#d98a8a", textAlign: "center", padding: 4, cursor: "help" }}>
-            ❌ {cell.error ? cell.error.slice(0, 30) : "失败"}
-          </div>
-        )}
-        {cell.status === "idle" && (
-          <button
-            onClick={(e) => { e.stopPropagation(); generateCell(cell.row, cell.col); }}
-            style={{
-              position: "absolute", top: 3, right: 3,
-              background: "rgba(155,114,207,0.65)", border: "none", borderRadius: 5,
-              fontSize: 9, color: "#fff", cursor: "pointer", padding: "2px 5px",
-            }}
-          >
-            生成
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {/* 通用参数 */}
-      <div style={{
-        background: "rgba(255,255,255,0.75)",
-        borderRadius: 14, border: "1px solid rgba(200,195,215,0.3)",
-        padding: "16px 20px", marginBottom: 20,
-        display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center",
-      }}>
-        <div style={{ flex: "1 1 200px" }}>
-          <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 4, display: "block" }}>基础描述</label>
-          <input
-            value={basePrompt}
-            onChange={(e) => setBasePrompt(e.target.value)}
-            style={{
-              width: "100%", boxSizing: "border-box",
-              border: "1px solid rgba(200,195,215,0.4)", borderRadius: 8,
-              padding: "6px 10px", fontSize: 13, color: "#3d3545",
-            }}
-          />
-        </div>
-        <div style={{ flex: "1 1 120px" }}>
-          <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 4, display: "block" }}>模型</label>
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            style={{
-              width: "100%", boxSizing: "border-box",
-              border: "1px solid rgba(200,195,215,0.4)", borderRadius: 8,
-              padding: "6px 10px", fontSize: 13, color: "#3d3545", background: "#fff",
-            }}
-          >
-            {MUSIC_MODELS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            id="matrix_instrumental"
-            checked={isInstrumental}
-            onChange={(e) => setIsInstrumental(e.target.checked)}
-            style={{ accentColor: "#7b4fc4" }}
-          />
-          <label htmlFor="matrix_instrumental" style={{ fontSize: 13, color: "#8a8394", cursor: "pointer" }}>
-            纯音乐
-          </label>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {doneCount > 0 && (
-            <div style={{ fontSize: 12, color: "#8a8394" }}>
-              {doneCount}/{total} 已生成 {pct}%
-            </div>
-          )}
-          <button
-            onClick={generateAll}
-            disabled={isRunning || rows.length === 0 || cols.length === 0}
-            style={{
-              padding: "8px 20px", borderRadius: 10,
-              background: isRunning ? "rgba(123,79,196,0.4)" : "rgba(123,79,196,0.85)",
-              border: "none", color: "#fff", fontSize: 13, fontWeight: 600,
-              cursor: isRunning ? "not-allowed" : "pointer",
-            }}
-          >
-            {isRunning ? "生成中..." : `🚀 生成全部 ${total} 首`}
-          </button>
-        </div>
-      </div>
-
-      {/* 矩阵配置 */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
-        {/* 左侧：行/列配置 */}
-        <div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <label style={{ fontSize: 12, color: "#8a8394" }}>音乐主题（每行一个，{rows.length}个）</label>
-              <span style={{ fontSize: 11, color: "#bdb9c8" }}>共 {rows.length} 个</span>
-            </div>
-            <textarea
-              value={promptRows}
-              onChange={(e) => setPromptRows(e.target.value)}
-              rows={6}
-              style={{
-                width: "100%", boxSizing: "border-box",
-                border: "1px solid rgba(200,195,215,0.4)", borderRadius: 12,
-                background: "rgba(255,255,255,0.6)", fontSize: 12.5, color: "#3d3545",
-                fontFamily: "var(--font-main)", resize: "vertical", outline: "none",
-                padding: "10px 12px",
-              }}
-            />
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <label style={{ fontSize: 12, color: "#8a8394" }}>风格（每列一个，{cols.length}个）</label>
-              <span style={{ fontSize: 11, color: "#bdb9c8" }}>共 {cols.length} 个</span>
-            </div>
-            <textarea
-              value={styleCols}
-              onChange={(e) => setStyleCols(e.target.value)}
-              rows={4}
-              style={{
-                width: "100%", boxSizing: "border-box",
-                border: "1px solid rgba(200,195,215,0.4)", borderRadius: 12,
-                background: "rgba(255,255,255,0.6)", fontSize: 12.5, color: "#3d3545",
-                fontFamily: "var(--font-main)", resize: "vertical", outline: "none",
-                padding: "10px 12px",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* 右侧：矩阵预览 */}
-        <div>
-          {rows.length > 0 && cols.length > 0 ? (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ borderCollapse: "separate", borderSpacing: 5, minWidth: 400 }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: 80, padding: "0 4px 8px", fontSize: 10, color: "#bdb9c8", textAlign: "left" }} />
-                    {cols.map((s, c) => (
-                      <th key={c} style={{ padding: "0 0 8px" }}>
-                        <div style={{
-                          fontSize: 11, fontWeight: 700, color: "#7b4fc4",
-                          background: "rgba(155,114,207,0.12)",
-                          border: "1px solid rgba(155,114,207,0.25)",
-                          borderRadius: 8, padding: "4px 8px", cursor: "help",
-                          whiteSpace: "nowrap", textAlign: "center",
-                        }}>
-                          {s.slice(0, 12)}{s.length > 12 ? "…" : ""}
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((rowPrompt, r) => (
-                    <tr key={r}>
-                      <td style={{ padding: "0 4px 0 0" }}>
-                        <div style={{
-                          background: "rgba(155,114,207,0.08)",
-                          border: "1px solid rgba(155,114,207,0.2)",
-                          borderRadius: 8, padding: "5px 8px",
-                          cursor: "help", minHeight: 80,
-                          display: "flex", flexDirection: "column", justifyContent: "center",
-                        }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b6375" }}>#{r + 1}</div>
-                          <div style={{ fontSize: 10, color: "#9b8fc4" }}>
-                            {rowPrompt.slice(0, 12)}{rowPrompt.length > 12 ? "…" : ""}
-                          </div>
-                        </div>
-                      </td>
-                      {cols.map((_, c) => {
-                        const key = `${r}-${c}`;
-                        const cell = cells[key] || { row: r, col: c, status: "idle" as const };
-                        return (
-                          <td key={key} style={{ padding: 0 }}>
-                            <MatrixCell cell={cell} />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{
-              background: "rgba(255,255,255,0.45)", borderRadius: 16, padding: "40px",
-              border: "1px dashed rgba(200,195,215,0.4)", textAlign: "center", color: "#bdb9c8", fontSize: 13,
-            }}>
-              填写音乐主题和风格配置后，这里将显示矩阵预览
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Lyrics generation tab
 // ─────────────────────────────────────────────────────────────────────────────
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -1114,7 +801,7 @@ function LyricsTab() {
 // Main MusicPage
 // ─────────────────────────────────────────────────────────────────────────────
 export default function MusicPage() {
-  const [tab, setTab] = useState<"single" | "matrix" | "lyrics">("single");
+  const [tab, setTab] = useState<"single" | "lyrics">("single");
 
   return (
     <div>
@@ -1126,7 +813,6 @@ export default function MusicPage() {
         <div style={{ display: "flex", gap: 6 }}>
           {[
             { id: "single" as const, label: "单曲生成" },
-            { id: "matrix" as const, label: "矩阵生成" },
             { id: "lyrics" as const, label: "歌词生成" },
           ].map((t) => (
             <button
@@ -1146,7 +832,7 @@ export default function MusicPage() {
         </div>
       </div>
 
-      {tab === "single" ? <SingleMusicTab /> : tab === "matrix" ? <MatrixMusicTab /> : <LyricsTab />}
+      {tab === "single" ? <SingleMusicTab /> : <LyricsTab />}
     </div>
   );
 }
