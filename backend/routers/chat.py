@@ -12,11 +12,16 @@ API_BASE_URL = "https://api.minimaxi.com"
 router = APIRouter()
 
 
+class HistoryMsg(BaseModel):
+    role: str   # "user" | "assistant"
+    content: str
+
 class ChatRequest(BaseModel):
-    text: str                          # 用户输入文本
+    text: str
     voice_id: str = "Chinese (Mandarin)_Sweet_Lady"
-    prompt: str = "你是一个温柔体贴的对话伙伴，友善地回应每一句话。"  # 系统提示词
-    model: str = "MiniMax-M2.7"       # 对话模型
+    prompt: str = "你是一个温柔体贴的对话伙伴，友善地回应每一句话。"
+    model: str = "MiniMax-M2.7"
+    history: list[HistoryMsg] = []     # 最近 N 轮对话历史
 
 
 class ChatResponse(BaseModel):
@@ -35,13 +40,14 @@ def chat(req: ChatRequest):
         "Content-Type": "application/json",
     }
 
+    messages = [{"role": m.role, "content": m.content} for m in req.history]
+    messages.append({"role": "user", "content": req.text})
+
     payload = {
         "model": req.model,
         "stream": False,
         "system": req.prompt,
-        "messages": [
-            {"role": "user", "content": req.text}
-        ],
+        "messages": messages,
     }
 
     try:
