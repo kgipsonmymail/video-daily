@@ -1,0 +1,13 @@
+{
+  "name": "t2s-chat",
+  "version": "1.0.0",
+  "description": "``` t2s-chat/ ├── index.html      # 主页面 ├── .env           # 后端API地址配置（可选） ├── portrait.png   # 角色立绘（放在index.html同级） └── user-avatar.png # 用户头像（可选） ```",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
