@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对话页面</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f5f5f7;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .container {
+    width: 420px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 700px;
+  }
+
+  .header {
+    padding: 20px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+  }
+
+  .header h2 {
+    font-size: 16px;
+    color: #333;
+    font-weight: 500;
+  }
+
+  .character-portrait {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 10px;
+    background: #e0e0e0;
+  }
+
+  .dialogue-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .bubble-wrap {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .bubble-wrap.right {
+    flex-direction: row-reverse;
+  }
+
+  .bubble-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #e8e8ed;
+    flex-shrink: 0;
+    object-fit: cover;
+  }
+
+  .bubble-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 70%;
+  }
+
+  .bubble-block.right {
+    align-items: flex-end;
+  }
+
+  .bubble-text {
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #333;
+    background: #f0f0f5;
+    word-break: break-word;
+  }
+
+  .bubble-block.right .bubble-text {
+    background: #007aff;
+    color: #fff;
+  }
+
+  .bubble-audio {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #f0f0f5;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    color: #007aff;
+    transition: background 0.2s;
+    width: fit-content;
+  }
+
+  .bubble-audio:hover { background: #e0e0ea; }
+  .bubble-audio.playing { background: #007aff; color: #fff; }
+  .bubble-audio.loading { opacity: 0.6; pointer-events: none; }
+
+  .bubble-audio svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  .input-area {
+    padding: 16px;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 10px;
+  }
+
+  .input-area textarea {
+    flex: 1;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+    height: 44px;
+    min-height: 44px;
+    max-height: 120px;
+    line-height: 1.5;
+  }
+
+  .input-area textarea:focus { border-color: #007aff; }
+
+  .send-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #007aff;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+
+  .send-btn:hover { background: #0066d6; }
+  .send-btn:disabled { background: #b0b0b8; cursor: not-allowed; }
+
+  .voice-select {
+    padding: 12px 16px;
+    border-top: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #666;
+  }
+
+  .voice-select select {
+    flex: 1;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    outline: none;
+    background: #fafafa;
+  }
+
+  .status-bar {
+    padding: 6px 16px;
+    font-size: 11px;
+    color: #999;
+    text-align: center;
+    border-top: 1px solid #eee;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <img src="https://via.placeholder.com/80" class="character-portrait" id="portrait" alt="角色立绘">
+    <h2>对话</h2>
+  </div>
+
+  <div class="dialogue-area" id="dialogueArea"></div>
+
+  <div class="voice-select">
+    <span>音色:</span>
+    <select id="voiceSelect">
+      <option value="Chinese (Mandarin)_Sweet_Lady">少女 · 甜美女声</option>
+      <option value="Chinese (Mandarin)_Mature_Woman">御姐 · 傲娇御姐</option>
+      <option value="Chinese (Mandarin)_Kind-hearted_Elder">奶奶 · 花甲奶奶</option>
+      <option value="Chinese (Mandarin)_Pure-hearted_Boy">少年 · 清澈邻家弟弟</option>
+      <option value="Chinese (Mandarin)_Humorous_Elder">大爷 · 搞笑大爷</option>
+    </select>
+  </div>
+
+  <div class="input-area">
+    <textarea id="inputText" placeholder="输入文字后发送…" rows="1"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+
+  <div class="status-bar" id="statusBar">就绪</div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:8000/api";
+
+// 当前播放状态
+let currentAudio = null;
+let currentBtn = null;
+
+function splitSentences(text) {
+  // 按句子拆分，保留标点
+  const sentences = text.match(/[^。！？.!?]+[。！？.!?]*/g);
+  return sentences ? sentences.map(s => s.trim()).filter(s => s.length > 0) : [text];
+}
+
+function setStatus(msg) {
+  document.getElementById("statusBar").textContent = msg;
+}
+
+function addBubble(text, isUser = false) {
+  const area = document.getElementById("dialogueArea");
+  const wrap = document.createElement("div");
+  wrap.className = "bubble-wrap" + (isUser ? " right" : "");
+
+  const avatar = document.createElement("img");
+  avatar.className = "bubble-avatar";
+  avatar.src = isUser
+    ? "https://via.placeholder.com/36"
+    : document.getElementById("portrait").src;
+
+  const block = document.createElement("div");
+  block.className = "bubble-block" + (isUser ? " right" : "");
+
+  const bubbleText = document.createElement("div");
+  bubbleText.className = "bubble-text";
+  bubbleText.textContent = text;
+
+  block.appendChild(bubbleText);
+  wrap.appendChild(avatar);
+  wrap.appendChild(block);
+  area.appendChild(wrap);
+  area.scrollTop = area.scrollHeight;
+
+  return block;
+}
+
+function addAudioBtn(block, sentenceIndex, totalCount) {
+  const btn = document.createElement("button");
+  btn.className = "bubble-audio loading";
+  btn.innerHTML = `
+    <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+    </svg>
+    <span class="btn-text">播放 ${sentenceIndex + 1}/${totalCount}</span>
+  `;
+  btn.onclick = () => togglePlay(btn, sentenceIndex);
+  block.appendChild(btn);
+  return btn;
+}
+
+async function togglePlay(btn, index) {
+  const audioData = btn._audioData;
+  if (!audioData) return;
+
+  // 如果正在播放的是当前按钮，重新从头播放
+  if (currentAudio && currentAudio._index === index && !currentAudio.paused) {
+    currentAudio.currentTime = 0;
+    currentAudio.pause();
+    updateBtnState(btn, false);
+    currentAudio = null;
+    currentBtn = null;
+    return;
+  }
+
+  // 停止之前的
+  if (currentAudio) {
+    currentAudio.pause();
+    if (currentBtn) updateBtnState(currentBtn, false);
+  }
+
+  // 播放新的
+  const audio = audioData;
+  audio._index = index;
+  audio.play();
+  currentAudio = audio;
+  currentBtn = btn;
+  updateBtnState(btn, true);
+
+  audio.onended = () => {
+    updateBtnState(btn, false);
+    currentAudio = null;
+    currentBtn = null;
+  };
+
+  audio.ontimeupdate = () => {
+    // 播放进度更新
+  };
+}
+
+function updateBtnState(btn, playing) {
+  if (playing) {
+    btn.classList.add("playing");
+    btn.querySelector(".play-icon").innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+    btn.querySelector(".btn-text").textContent = "暂停";
+  } else {
+    btn.classList.remove("playing");
+    btn.querySelector(".play-icon").innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+    const total = btn._totalCount || 0;
+    const idx = btn._index + 1;
+    btn.querySelector(".btn-text").textContent = `播放 ${idx}/${total}`;
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById("inputText");
+  const text = input.value.trim();
+  if (!text) return;
+
+  const sendBtn = document.getElementById("sendBtn");
+  sendBtn.disabled = true;
+  setStatus("生成中…");
+  input.value = "";
+
+  // 用户气泡
+  addBubble(text, true);
+
+  try {
+    const voiceId = document.getElementById("voiceSelect").value;
+    const sentences = splitSentences(text);
+
+    const resp = await fetch(`${API_BASE}/audio/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: text,
+        voice_id: voiceId,
+        model: "speech-2.8-hd",
+        speed: 1.0,
+      }),
+    });
+
+    if (!resp.ok) throw new Error(`API错误: ${resp.status}`);
+    const audios = await resp.json();
+
+    // 每个句子添加气泡
+    for (let i = 0; i < sentences.length; i++) {
+      const sentence = sentences[i];
+      const bubble = addBubble(sentence);
+      const btn = addAudioBtn(bubble, i, sentences.length);
+      btn._totalCount = sentences.length;
+      btn._index = i;
+
+      if (audios[i] && audios[i].file_url) {
+        const audio = new Audio(audios[i].file_url);
+        audio._index = i;
+        btn._audioData = audio;
+        btn.classList.remove("loading");
+        btn.title = "点击播放";
+      } else {
+        btn.querySelector(".btn-text").textContent = "无音频";
+        btn.disabled = true;
+      }
+    }
+
+    setStatus(`生成完成 · ${sentences.length} 句`);
+  } catch (e) {
+    console.error(e);
+    setStatus("生成失败: " + e.message);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+// 回车发送
+document.getElementById("inputText").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// 自动调整高度
+document.getElementById("inputText").addEventListener("input", function () {
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 120) + "px";
+});
+</script>
+</body>
+</html>

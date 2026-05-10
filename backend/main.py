@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models import Base
 from backend.database import engine
-from backend.routers import runs, assets, prompts, quotas, tasks, generate, matrix, voices, audio, music
+from backend.routers import runs, assets, prompts, quotas, tasks, generate, matrix, voices, audio, music, chat
 
 # 项目根目录，用于静态文件访问
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -55,7 +55,7 @@ app = FastAPI(title="Video Daily API", version="1.0.0")
 # 允许 React 前端跨域访问
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:5175", "http://localhost:5176", "http://localhost:5174", "http://localhost:3000", "http://localhost:5177", "http://localhost:8080"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,6 +72,7 @@ app.include_router(matrix.router, prefix="/api/matrix", tags=["矩阵配置"])
 app.include_router(voices.router, prefix="/api/voices", tags=["音色管理"])
 app.include_router(audio.router, prefix="/api/audio", tags=["音频工坊"])
 app.include_router(music.router, prefix="/api/music", tags=["音乐生成"])
+app.include_router(chat.router, prefix="/api/chat", tags=["文本对话"])
 
 
 @app.get("/api/health")

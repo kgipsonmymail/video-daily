@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>语音对话测试</title>
+<script src="./config.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: "PingFang SC", "Noto Sans SC", "Hiragino Sans GB", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+
+  @keyframes fadeInBubble {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes waveAnim {
+    0% { transform: scaleY(0.35); }
+    100% { transform: scaleY(1); }
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .animate-spin { animation: spin 1s linear infinite; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── 配置 ────────────────────────────────────────────────────────────
+const API_BASE = window.T2S_CONFIG?.API_BASE || "http://localhost:8000/api";
+const DEMO_MODE = window.T2S_CONFIG?.DEMO_MODE || false;
+const PBG = "#FAF5F0";
+
+// ── 音色配置 ───────────────────────────────────────────────────────
+const VOICES = [
+  { id: "Chinese (Mandarin)_Sweet_Lady", name: "甜美女声", emoji: "🌸", grad: ["#FFC6BB", "#F1A2A2"], ac: "#E07B7B" },
+  { id: "Chinese (Mandarin)_Mature_Woman", name: "傲娇御姐", emoji: "🔥", grad: ["#FFAC8B", "#E97652"], ac: "#C96A4B" },
+  { id: "Chinese (Mandarin)_Kind-hearted_Antie", name: "热心大婶", emoji: "🍵", grad: ["#DFD9EB", "#B7A6CC"], ac: "#9578B5" },
+  { id: "Chinese (Mandarin)_Crisp_Girl", name: "清脆少女", emoji: "🌷", grad: ["#C8E6C9", "#A5D6A7"], ac: "#81C784" },
+  { id: "Chinese (Mandarin)_Warm_Girl", name: "温暖少女", emoji: "☀️", grad: ["#FFE0B2", "#FFCC80"], ac: "#FFB74D" },
+];
+
+const DEFAULT_PROMPTS = [
+  { id: "default", label: "默认对话", prompt: "你是一个温柔体贴的对话伙伴，友善地回应每一句话。" },
+  { id: "mentor", label: "人生导师", prompt: "你是一位睿智的人生导师，用深刻的洞察和温暖的语气给予建议。" },
+  { id: "friend", label: "闺蜜好友", prompt: "你是用户最亲密的闺蜜，热情活泼，理解对方的情绪和吐槽。" },
+];
+
+function splitSentences(text) {
+  const s = text.match(/[^。！？.!?\n]+[。！？.!?\n]*/g);
+  return s ? s.map(s => s.trim()).filter(s => s.length > 0) : [text];
+}
+
+function formatTime() {
+  const d = new Date();
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+}
+
+// ── 呼吸波形组件 ─────────────────────────────────────────────────────
+function BreathingWave({ color, playing }) {
+  const heights = [3, 7, 5, 10, 14, 10, 5, 7, 3, 8, 12, 8, 3, 5, 10, 7, 4, 3];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 2, height: 20, marginTop: 4 }}>
+      {heights.map((h, i) => (
+        <div key={i} style={{
+          width: 2,
+          height: h,
+          borderRadius: 2,
+          background: `${color}88`,
+          animation: playing ? `waveAnim 0.8s ease-in-out ${i * 0.06}s infinite alternate` : "none",
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// ── 音频播放按钮 ───────────────────────────────────────────────────────
+function AudioBtn({ sentenceIdx, total, playing, loading, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      style={{
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "5px 12px", borderRadius: 20,
+        background: playing ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.15)",
+        border: `1px solid ${playing ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.2)"}`,
+        color: playing ? "#fff" : "rgba(255,255,255,0.9)",
+        fontSize: 12, cursor: loading ? "default" : "pointer",
+        transition: "all 0.2s", backdropFilter: "blur(8px)",
+        fontFamily: "inherit",
+      }}
+    >
+      {loading ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+          <circle cx="12" cy="12" r="10" strokeOpacity="0.3" />
+          <path d="M12 2a10 10 0 0 1 10 10" />
+        </svg>
+      ) : playing ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16" />
+          <rect x="14" y="4" width="4" height="16" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3" />
+        </svg>
+      )}
+      <span>{loading ? "生成中…" : playing ? "暂停" : `播放 ${sentenceIdx + 1}/${total}`}</span>
+    </button>
+  );
+}
+
+// ── 聊天气泡 ─────────────────────────────────────────────────────────
+function Bubble({ msg, voice, onPlayAudio, playingIdx, loadingAudio }) {
+  const me = msg.from === "me";
+  const [vis, setVis] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setVis(true), msg.isNew ? 80 : 0);
+    return () => clearTimeout(t);
+  }, [msg.isNew]);
+
+  const bubbleStyle = {
+    maxWidth: "78%",
+    padding: "12px 16px",
+    borderRadius: me ? "20px 20px 4px 20px" : "20px 20px 20px 4px",
+    background: me ? "#E8F4FF" : "#FFF8F4",
+    boxShadow: me ? "none" : `0 4px 20px ${voice.ac}18`,
+    color: "#241A14",
+    fontSize: 15,
+    lineHeight: 1.65,
+    wordBreak: "break-word",
+    whiteSpace: "pre-wrap",
+    opacity: vis ? 1 : 0,
+    transform: vis ? "translateY(0)" : "translateY(10px)",
+    transition: "all 0.35s ease",
+  };
+
+  return (
+    <div style={{
+      display: "flex", justifyContent: me ? "flex-end" : "flex-start",
+      padding: "3px 16px",
+      animation: vis ? "fadeInBubble 0.35s ease" : "none",
+    }}>
+      {!me && (
+        <div style={{
+          width: 32, height: 32, borderRadius: "50%",
+          background: `linear-gradient(135deg, ${voice.grad[0]}, ${voice.grad[1]})`,
+          marginRight: 8, alignSelf: "flex-end", flexShrink: 0,
+          border: `2px solid ${voice.ac}44`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 16
+        }}>
+          {voice.emoji}
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: me ? "flex-end" : "flex-start" }}>
+        {!me && (
+          <span style={{ fontSize: 10, color: `${voice.ac}99`, paddingLeft: 4, letterSpacing: "0.08em" }}>
+            {voice.name}
+          </span>
+        )}
+        <div style={bubbleStyle}>{msg.text}</div>
+
+        {!me && msg.audios && msg.audios.map((url, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 4 }}>
+            <BreathingWave color={voice.ac} playing={playingIdx === i} />
+            <AudioBtn
+              sentenceIdx={i}
+              total={msg.audios.length}
+              playing={playingIdx === i}
+              loading={msg.loadingAudio}
+              onClick={() => !msg.loadingAudio && url && onPlayAudio(msg.id, i, url)}
+            />
+          </div>
+        ))}
+        <span style={{ fontSize: 10, color: "#241A1430", paddingLeft: 4, paddingRight: 4, marginTop: 2 }}>
+          {msg.time}
+        </span>
+      </div>
+      {me && (
+        <div style={{
+          width: 32, height: 32, borderRadius: "50%", background: "#007aff",
+          marginLeft: 8, alignSelf: "flex-end", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center"
+        }}>
+          <span style={{ color: "#fff", fontSize: 12 }}>我</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 输入栏 ───────────────────────────────────────────────────────────
+function InputBar({ onSend, sending }) {
+  const [val, setVal] = useState("");
+  const taRef = useRef(null);
+
+  const submit = () => {
+    const t = val.trim();
+    if (!t || sending) return;
+    onSend(t);
+    setVal("");
+    if (taRef.current) { taRef.current.style.height = "auto"; }
+  };
+
+  return (
+    <div style={{
+      padding: "12px 16px 20px",
+      background: "rgba(255,255,255,0.92)",
+      backdropFilter: "blur(20px)",
+      borderTop: "1px solid rgba(0,0,0,0.07)",
+    }}>
+      <div style={{
+        display: "flex", gap: 10, alignItems: "flex-end",
+        background: "#F0EFF4", borderRadius: 24,
+        padding: "8px 8px 8px 18px",
+        border: "1.5px solid transparent",
+        transition: "border-color 0.2s",
+      }}>
+        <textarea
+          ref={taRef}
+          value={val}
+          onChange={e => {
+            setVal(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+          }}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+          }}
+          placeholder="说点什么…"
+          rows={1}
+          style={{
+            flex: 1, border: "none", outline: "none", background: "transparent",
+            fontSize: 15, lineHeight: 1.5, resize: "none", maxHeight: 120,
+            color: "#241A14", fontFamily: "inherit",
+          }}
+        />
+        <button
+          onClick={submit}
+          disabled={!val.trim() || sending}
+          style={{
+            width: 40, height: 40, borderRadius: "50%",
+            background: val.trim() && !sending ? "#007aff" : "#d8d8e0",
+            border: "none", cursor: val.trim() && !sending ? "pointer" : "default",
+            color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background 0.2s", flexShrink: 0,
+            fontFamily: "inherit",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── 音色选择 ────────────────────────────────────────────────────────
+function VoiceSelect({ voices, active, onChange }) {
+  return (
+    <div style={{
+      padding: "8px 16px",
+      background: "rgba(255,255,255,0.7)",
+      backdropFilter: "blur(8px)",
+      borderBottom: "1px solid rgba(0,0,0,0.05)",
+      display: "flex", alignItems: "center", gap: 8, overflowX: "auto",
+      flexShrink: 0,
+    }}>
+      <span style={{ fontSize: 11, color: "#241A1466", whiteSpace: "nowrap", flexShrink: 0, letterSpacing: "0.05em" }}>音色</span>
+      {voices.map(v => (
+        <button
+          key={v.id}
+          onClick={() => onChange(v)}
+          style={{
+            padding: "4px 12px", borderRadius: 16,
+            background: active.id === v.id ? `${v.ac}18` : "transparent",
+            border: `1.5px solid ${active.id === v.id ? v.ac + "44" : "transparent"}`,
+            color: active.id === v.id ? v.ac : "#241A1466",
+            fontSize: 12, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+            fontFamily: "inherit", transition: "all 0.2s",
+          }}
+        >
+          {v.emoji} {v.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── 提示词弹窗 ───────────────────────────────────────────────────────
+function PromptModal({ prompts, active, onChange, onClose }) {
+  const [custom, setCustom] = useState(active.id === "custom" ? active.prompt : "");
+
+  useEffect(() => {
+    if (active.id === "custom") setCustom(active.prompt);
+    else setCustom("");
+  }, [active]);
+
+  const applyCustom = () => {
+    if (!custom.trim()) return;
+    onChange({ id: "custom", label: "自定义", prompt: custom.trim() });
+  };
+
+  const closeModal = () => {
+    applyCustom();
+    onClose();
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1000,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      backdropFilter: "blur(4px)",
+    }} onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
+      <div style={{
+        width: 360, background: "#FAF5F0", borderRadius: 24,
+        boxShadow: "0 24px 80px rgba(0,0,0,0.3)",
+        overflow: "hidden",
+      }}>
+        <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 16, fontWeight: 600, color: "#241A14" }}>选择提示词</span>
+            <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: "#241A1455", fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+          </div>
+        </div>
+        <div style={{ padding: "16px 20px", maxHeight: 320, overflowY: "auto" }}>
+          {prompts.map(p => (
+            <div key={p.id} onClick={() => onChange(p)} style={{
+              padding: "12px 16px", borderRadius: 14, marginBottom: 8,
+              background: active.id === p.id ? "#C96A4B18" : "#fff",
+              border: `1.5px solid ${active.id === p.id ? "#C96A4B44" : "transparent"}`,
+              cursor: "pointer", transition: "all 0.2s",
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#241A14", marginBottom: 4 }}>{p.label}</div>
+              <div style={{ fontSize: 12, color: "#241A1477", lineHeight: 1.5 }}>{p.prompt}</div>
+            </div>
+          ))}
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(0,0,0,0.07)" }}>
+            <div style={{ fontSize: 12, color: "#241A1466", marginBottom: 8, letterSpacing: "0.05em" }}>自定义提示词</div>
+            <textarea
+              value={custom}
+              onChange={e => setCustom(e.target.value)}
+              placeholder="输入你想设定的角色描述…"
+              rows={3}
+              style={{ width: "100%", border: "1.5px solid #E0E0E8", borderRadius: 12, padding: "10px 12px", fontSize: 13, resize: "none", outline: "none", fontFamily: "inherit", background: "#fff", color: "#241A14", lineHeight: 1.5, boxSizing: "border-box" }}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button onClick={applyCustom} disabled={!custom.trim()} style={{
+                flex: 1, padding: "9px", borderRadius: 12,
+                background: custom.trim() ? "#007aff" : "#d8d8e0",
+                border: "none", color: "#fff", fontSize: 14, cursor: custom.trim() ? "pointer" : "default",
+                fontFamily: "inherit", transition: "background 0.2s",
+              }}>保存自定义</button>
+              <button onClick={closeModal} style={{
+                padding: "9px 16px", borderRadius: 12,
+                background: "#fff", border: "1.5px solid #E0E0E8",
+                color: "#241A14", fontSize: 14, cursor: "pointer",
+                fontFamily: "inherit",
+              }}>关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 主应用 ───────────────────────────────────────────────────────────
+function App() {
+  const [voice, setVoice] = useState(VOICES[0]);
+  const [activePrompt, setActivePrompt] = useState(DEFAULT_PROMPTS[0]);
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [msgs, setMsgs] = useState([]);
+  const [sending, setSending] = useState(false);
+  const [playing, setPlaying] = useState({ msgId: null, audioIdx: null });
+  const [genPhase, setGenPhase] = useState("");
+  const bottomRef = useRef(null);
+  const audioRefs = useRef({});
+  const currentAudio = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(audioRefs.current).forEach(a => { if (a) { a.pause(); a.src = ""; } });
+      if (currentAudio.current) { currentAudio.current.pause(); currentAudio.current = null; }
+    };
+  }, []);
+
+  const stopAudio = () => {
+    if (currentAudio.current) {
+      currentAudio.current.pause();
+      currentAudio.current = null;
+    }
+    setPlaying({ msgId: null, audioIdx: null });
+  };
+
+  const handlePlayAudio = (msgId, audioIdx, url) => {
+    const key = `${msgId}-${audioIdx}`;
+    const audio = audioRefs.current[key];
+    if (!audio) {
+      stopAudio();
+      const newAudio = new Audio(url);
+      audioRefs.current[key] = newAudio;
+      currentAudio.current = newAudio;
+      newAudio.onended = () => { setPlaying({ msgId: null, audioIdx: null }); currentAudio.current = null; };
+      newAudio.play();
+      setPlaying({ msgId, audioIdx });
+      return;
+    }
+    if (currentAudio.current === audio && !audio.paused) {
+      audio.pause();
+      audio.currentTime = 0;
+      setPlaying({ msgId: null, audioIdx: null });
+      currentAudio.current = null;
+    } else {
+      stopAudio();
+      audio.currentTime = 0;
+      audio.play();
+      currentAudio.current = audio;
+      setPlaying({ msgId, audioIdx });
+    }
+  };
+
+  const handleSend = useCallback(async (text) => {
+    setSending(true);
+    const now = formatTime();
+    const uid = Date.now();
+
+    setMsgs(m => [...m, { id: uid, from: "me", text, time: now, isNew: true }]);
+    stopAudio();
+
+    try {
+      setGenPhase("AI 思考中…");
+      const chatResp = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          voice_id: voice.id,
+          prompt: activePrompt.prompt,
+        }),
+      });
+
+      let aiText;
+      if (chatResp.ok) {
+        const chatData = await chatResp.json();
+        aiText = chatData.text || "";
+      }
+
+      if (!aiText) {
+        throw new Error("AI 未返回有效回复");
+      }
+
+      const aiUid = uid + 1;
+      const sentences = splitSentences(aiText);
+      setMsgs(m => [...m, { id: aiUid, from: "ai", text: aiText, time: now, isNew: true, audios: [], loadingAudio: true }]);
+      setGenPhase("正在生成语音…");
+
+      const ttsResp = await fetch(`${API_BASE}/audio/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: aiText, voice_id: voice.id, model: "speech-2.8-hd", speed: 1.0 }),
+      });
+
+      if (!ttsResp.ok) throw new Error(`TTS 失败: ${ttsResp.status}`);
+
+      const audios = await ttsResp.json();
+
+      setMsgs(m => m.map(msg =>
+        msg.id === aiUid
+          ? { ...msg, audios: audios.map(a => a?.file_url).filter(Boolean), loadingAudio: false }
+          : msg
+      ));
+
+      if (audios[0]?.file_url) {
+        await new Promise(r => setTimeout(r, 200));
+        const key = `${aiUid}-0`;
+        const audio = new Audio(audios[0].file_url);
+        audioRefs.current[key] = audio;
+        currentAudio.current = audio;
+        audio.onended = () => { setPlaying({ msgId: null, audioIdx: null }); currentAudio.current = null; };
+        audio.play();
+        setPlaying({ msgId: aiUid, audioIdx: 0 });
+      }
+    } catch (e) {
+      setMsgs(m => [...m, { id: uid + 999, from: "ai", text: `生成失败: ${e.message}`, time: now, isNew: false, audios: null, loadingAudio: false }]);
+    } finally {
+      setSending(false);
+      setGenPhase("");
+    }
+  }, [voice.id, API_BASE, activePrompt]);
+
+  const emojiUrl = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Ccircle cx='28' cy='28' r='28' fill='${encodeURIComponent(voice.grad[0])}'/%3E%3Ctext x='28' y='36' text-anchor='middle' font-size='26' fill='white'%3E${encodeURIComponent(voice.emoji)}%3C/text%3E%3C/svg%3E`;
+
+  return (
+    <div style={{
+      width: "100%", height: "100%", display: "flex", flexDirection: "column",
+      background: PBG,
+    }}>
+      <style>{`
+        @keyframes fadeInBubble { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes waveAnim { 0% { transform:scaleY(0.35); } 100% { transform:scaleY(1); } }
+        @keyframes pingRing { 0% { transform:scale(1); opacity:0.7; } 100% { transform:scale(1.7); opacity:0; } }
+      `}</style>
+
+      {/* 顶栏 */}
+      <div style={{
+        padding: "14px 16px 10px",
+        background: "rgba(255,255,255,0.88)",
+        backdropFilter: "blur(20px)",
+        borderBottom: "1px solid rgba(0,0,0,0.07)",
+        display: "flex", alignItems: "center", gap: 10,
+        flexShrink: 0,
+      }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <img
+            src={emojiUrl}
+            style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: `2px solid ${voice.ac}55`, display: "block" }}
+          />
+          {genPhase && (
+            <div style={{
+              position: "absolute", inset: -3,
+              borderRadius: "50%",
+              border: `2px solid ${voice.ac}`,
+              animation: "pingRing 1.8s ease-out infinite",
+              pointerEvents: "none",
+            }} />
+          )}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "#241A14" }}>{voice.name}</div>
+          <div style={{ fontSize: 11, color: genPhase ? voice.ac : "#241A1455" }}>
+            {genPhase || (activePrompt.id !== "default" ? activePrompt.label : "在线")}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => setShowPromptModal(true)}
+            style={{
+              padding: "5px 12px", borderRadius: 10,
+              background: activePrompt.id !== "default" ? `${voice.ac}22` : "rgba(255,255,255,0.6)",
+              border: `1px solid ${activePrompt.id !== "default" ? voice.ac + "44" : "rgba(0,0,0,0.1)"}`,
+              fontSize: 12, color: activePrompt.id !== "default" ? voice.ac : "#241A1488",
+              cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5,
+              transition: "all 0.2s",
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            {activePrompt.id === "default" ? "提示词" : activePrompt.label}
+          </button>
+        </div>
+      </div>
+
+      {/* 音色选择 */}
+      <VoiceSelect voices={VOICES} active={voice} onChange={v => { setVoice(v); stopAudio(); }} />
+
+      {/* 对话区 */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 0 4px", display: "flex", flexDirection: "column" }}>
+        {msgs.length === 0 && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, opacity: 0.45, paddingBottom: 60 }}>
+            <img src={emojiUrl} style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: `3px solid ${voice.ac}33` }} />
+            <div style={{ fontSize: 16, color: "#241A14", fontWeight: 500 }}>{voice.name}</div>
+            {activePrompt.id !== "default" && (
+              <div style={{ fontSize: 12, color: "#241A1466", textAlign: "center", maxWidth: 240, lineHeight: 1.6, padding: "4px 16px", background: "rgba(255,255,255,0.6)", borderRadius: 12, backdropFilter: "blur(8px)" }}>
+                "{activePrompt.prompt}"
+              </div>
+            )}
+            <div style={{ fontSize: 13, color: "#241A1455", textAlign: "center", lineHeight: 1.6 }}>
+              发送消息，开始对话<br />文字按句子拆分为独立语音
+            </div>
+          </div>
+        )}
+        {msgs.map(msg => (
+          <Bubble
+            key={msg.id}
+            msg={msg}
+            voice={voice}
+            onPlayAudio={handlePlayAudio}
+            playingIdx={playing.msgId === msg.id ? playing.audioIdx : null}
+            loadingAudio={msg.loadingAudio}
+          />
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* 提示词弹窗 */}
+      {showPromptModal && (
+        <PromptModal
+          prompts={DEFAULT_PROMPTS}
+          active={activePrompt}
+          onChange={p => { setActivePrompt(p); stopAudio(); }}
+          onClose={() => setShowPromptModal(false)}
+        />
+      )}
+
+      {/* 输入区 */}
+      <InputBar onSend={handleSend} sending={sending} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
