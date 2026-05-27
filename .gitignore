@@ -19,11 +19,8 @@ test_output.txt
 test_quick.py
 test_run.py
 
-# Works directory - all generated content
+# Works directory - all generated content (素材、提示词、音色样本)
 works/
-
-# Ref directory - generated API samples
-ref/api/voice/audio_studio/
 
 # IDE
 .vscode/

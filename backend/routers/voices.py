@@ -22,7 +22,8 @@ API_BASE_URL = "https://api.minimaxi.com"
 router = APIRouter()
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-VOICE_SAMPLES_DIR = PROJECT_ROOT / "ref" / "api" / "voice" / "samples"
+# 音色样本目录: works/voice-samples/
+VOICE_SAMPLES_DIR = PROJECT_ROOT / "works" / "voice-samples"
 VOICE_SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -112,10 +113,10 @@ def preview_voice(req: VoicePreviewRequest, http_request: Request, db: Session =
     tar_resp.raise_for_status()
 
     run_id = str(uuid.uuid4())[:8]
-    sample_dir = VOICE_SAMPLES_DIR / run_id
+    sample_dir = VOICE_SAMPLES_DIR / req.voice_id
     sample_dir.mkdir(parents=True, exist_ok=True)
 
-    tar_path = sample_dir / "output.tar"
+    tar_path = sample_dir / f"{run_id}.tar"
     with open(tar_path, "wb") as f:
         f.write(tar_resp.content)
 
@@ -123,7 +124,7 @@ def preview_voice(req: VoicePreviewRequest, http_request: Request, db: Session =
     with tarfile.open(tar_path, "r") as tar:
         for member in tar.getmembers():
             if member.name.endswith(".mp3"):
-                member.name = os.path.basename(member.name)
+                member.name = "sample.mp3"
                 tar.extract(member, sample_dir)
                 mp3_name = member.name
                 break
@@ -132,7 +133,7 @@ def preview_voice(req: VoicePreviewRequest, http_request: Request, db: Session =
         raise HTTPException(status_code=500, detail="解压MP3失败")
 
     # 5. 写入数据库
-    relative_path = f"ref/api/voice/samples/{run_id}/{mp3_name}"
+    relative_path = f"works/voice-samples/{req.voice_id}/sample.mp3"
     v = VoiceSample(
         voice_id=req.voice_id,
         voice_name=req.voice_name,

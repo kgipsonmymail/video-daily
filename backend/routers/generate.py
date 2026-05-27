@@ -201,11 +201,15 @@ def generate_image(req: ImageGenerateRequest, db: Session = Depends(get_db)):
         # 扣减额度
         _charge_quota(db, today, req.model, n=len(image_urls), category=category)
 
-        # 保存目录
+        # 保存目录: works/{category}/YYYY-MM-DD/
         proj_root = Path(__file__).parent.parent.parent
         sub_type = "i2i" if category == "i2i" else "t2i"
-        out_dir = proj_root / "works" / today / "assets" / "images" / sub_type
+        out_dir = proj_root / "works" / sub_type / today
         out_dir.mkdir(parents=True, exist_ok=True)
+
+        # 保存 prompt 文件（与素材同目录，同名不同后缀）
+        prompt_file = out_dir / f"{run_id}.prompt.txt"
+        prompt_file.write_text(req.prompt, encoding="utf-8")
 
         created_assets = []
         for i, url in enumerate(image_urls):

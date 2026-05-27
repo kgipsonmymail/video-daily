@@ -1,4 +1,4 @@
-"""视频生成任务，所有结果写入 SQLite 数据库。"""
+"""视频生成任务，所有结果写入 MySQL 数据库。"""
 
 import base64
 import urllib.request
@@ -82,15 +82,23 @@ def _mark_run(session, run_id: str, status: str,
     )
 
 
-def _save_prompt(session, run_id: str, prompt: str, category: str) -> int:
-    prompt_subdir = prompts_dir(today_str()) / category
-    prompt_subdir.mkdir(parents=True, exist_ok=True)
-    (prompt_subdir / f"{run_id}.txt").write_text(prompt, encoding="utf-8")
+def _build_rel_path(out_path: Path) -> str:
+    """构建相对于项目根目录的 POSIX 路径（用于数据库存储）。"""
+    proj_root = Path(__file__).parent.parent
+    rel = out_path.relative_to(proj_root)
+    return str(rel).replace("\\", "/")
+
+
+def _save_prompt(session, run_id: str, prompt: str, modality: str) -> int:
+    """保存 prompt 文件到素材目录（与素材同目录，同名不同后缀）。"""
+    out_dir = assets_dir(modality, today_str())
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{run_id}.prompt.txt").write_text(prompt, encoding="utf-8")
     row = upsert_prompt(session, prompt)
     return row.id
 
 
-def _check_and_charge_quota(session, model: str, run_id: str = "") -> None:
+def _check_and_charge_quota(session, model: str, category: str, run_id: str = "") -> None:
     today = today_str()
     bucket_name, limit = get_quota_bucket(model)
     quota = get_or_create_quota(session, today, model, bucket_name, limit)
@@ -106,7 +114,7 @@ def _check_and_charge_quota(session, model: str, run_id: str = "") -> None:
         n_used=1,
         source="tools",
         run_id=run_id,
-        category="t2v",
+        category=category,
     )
 
 
@@ -134,7 +142,7 @@ def run_t2v_task(
 
     try:
         prompt_id = _save_prompt(session, run_id, prompt, "t2v")
-        _check_and_charge_quota(session, model)
+        _check_and_charge_quota(session, model, "t2v")
         create_run(session, run_id=run_id, category="t2v", model=model,
                    variant=variant, theme=theme, status="running")
 
@@ -148,15 +156,13 @@ def run_t2v_task(
 
         _mark_run(session, run_id, "success", api_resp_id=task_id)
 
-        out_dir = assets_dir(today) / "videos" / "t2v"
+        out_dir = assets_dir("t2v", today)
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{run_id}.mp4"
         _download_video(download_url, out_path)
 
-        proj_root = Path(__file__).parent.parent.parent
-        rel_parts = out_path.relative_to(proj_root).parts
-        rel = str(Path(*rel_parts[1:]))
-        create_asset(session, run_id=run_id, file_path=str(rel),
+        rel = _build_rel_path(out_path)
+        create_asset(session, run_id=run_id, file_path=rel,
                      modality="video", sub_type="t2v", prompt_id=prompt_id)
         print(f"[T2V] → {out_path}")
         session.commit()
@@ -192,7 +198,7 @@ def run_i2v_task(
 
     try:
         prompt_id = _save_prompt(session, run_id, prompt, "i2v")
-        _check_and_charge_quota(session, model)
+        _check_and_charge_quota(session, model, "i2v")
         create_run(session, run_id=run_id, category="i2v", model=model,
                    variant=variant, theme=theme, status="running")
 
@@ -208,15 +214,13 @@ def run_i2v_task(
 
         _mark_run(session, run_id, "success", api_resp_id=task_id)
 
-        out_dir = assets_dir(today) / "videos" / "i2v"
+        out_dir = assets_dir("i2v", today)
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{run_id}.mp4"
         _download_video(download_url, out_path)
 
-        proj_root = Path(__file__).parent.parent.parent
-        rel_parts = out_path.relative_to(proj_root).parts
-        rel = str(Path(*rel_parts[1:]))
-        create_asset(session, run_id=run_id, file_path=str(rel),
+        rel = _build_rel_path(out_path)
+        create_asset(session, run_id=run_id, file_path=rel,
                      modality="video", sub_type="i2v", prompt_id=prompt_id)
         print(f"[I2V] → {out_path}")
         session.commit()
@@ -250,7 +254,7 @@ def run_fl2v_task(
 
     try:
         prompt_id = _save_prompt(session, run_id, prompt, "t2v")
-        _check_and_charge_quota(session, model)
+        _check_and_charge_quota(session, model, "fl2v")
         create_run(session, run_id=run_id, category="fl2v", model=model,
                    variant=variant, theme=theme, status="running")
 
@@ -266,15 +270,13 @@ def run_fl2v_task(
 
         _mark_run(session, run_id, "success", api_resp_id=task_id)
 
-        out_dir = assets_dir(today) / "videos" / "flf"
+        out_dir = assets_dir("t2v", today)  # fl2v 归类到 t2v 目录
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{run_id}.mp4"
         _download_video(download_url, out_path)
 
-        proj_root = Path(__file__).parent.parent.parent
-        rel_parts = out_path.relative_to(proj_root).parts
-        rel = str(Path(*rel_parts[1:]))
-        create_asset(session, run_id=run_id, file_path=str(rel),
+        rel = _build_rel_path(out_path)
+        create_asset(session, run_id=run_id, file_path=rel,
                      modality="video", sub_type="flf", prompt_id=prompt_id)
         print(f"[FL2V] → {out_path}")
         session.commit()
@@ -307,7 +309,7 @@ def run_s2v_task(
 
     try:
         prompt_id = _save_prompt(session, run_id, prompt, "t2v")
-        _check_and_charge_quota(session, model)
+        _check_and_charge_quota(session, model, "s2v")
         create_run(session, run_id=run_id, category="s2v", model=model,
                    variant=variant, theme=theme, status="running")
 
@@ -323,15 +325,13 @@ def run_s2v_task(
 
         _mark_run(session, run_id, "success", api_resp_id=task_id)
 
-        out_dir = assets_dir(today) / "videos" / "s2v"
+        out_dir = assets_dir("t2v", today)  # s2v 归类到 t2v 目录
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{run_id}.mp4"
         _download_video(download_url, out_path)
 
-        proj_root = Path(__file__).parent.parent.parent
-        rel_parts = out_path.relative_to(proj_root).parts
-        rel = str(Path(*rel_parts[1:]))
-        create_asset(session, run_id=run_id, file_path=str(rel),
+        rel = _build_rel_path(out_path)
+        create_asset(session, run_id=run_id, file_path=rel,
                      modality="video", sub_type="s2v", prompt_id=prompt_id)
         print(f"[S2V] → {out_path}")
         session.commit()

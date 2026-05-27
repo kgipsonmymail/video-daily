@@ -28,8 +28,8 @@ API_BASE_URL = "https://api.minimaxi.com"
 router = APIRouter()
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-AUDIO_OUTPUT_DIR = PROJECT_ROOT / "ref" / "api" / "voice" / "audio_studio"
-AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+# TTS 输出目录: works/tts/YYYY-MM-DD/
+TTS_BASE_DIR = PROJECT_ROOT / "works" / "tts"
 
 
 # ── Request/Response models ────────────────────────────────────────────
@@ -128,9 +128,10 @@ def _poll_task(task_id: str, headers: dict) -> None:
 
 
 def _extract_tar(tar_resp: requests.Response, run_id: str) -> tuple[Path, str]:
-    sample_dir = AUDIO_OUTPUT_DIR / run_id
+    today = date.today().isoformat()
+    sample_dir = TTS_BASE_DIR / today
     sample_dir.mkdir(parents=True, exist_ok=True)
-    tar_path = sample_dir / "output.tar"
+    tar_path = sample_dir / f"{run_id}.tar"
     with open(tar_path, "wb") as f:
         f.write(tar_resp.content)
     mp3_name = None
@@ -209,7 +210,7 @@ def _generate_single(db: Session, req: AudioGenerateRequest, text: str, index: i
         "model": req.model,
     }
 
-    relative_path = f"ref/api/voice/audio_studio/{run_id}/{mp3_name}"
+    relative_path = f"works/tts/{date.today().isoformat()}/{mp3_name}"
     voice_name = req.notes or req.voice_id
     v = VoiceSample(
         voice_id=req.voice_id,
@@ -218,7 +219,6 @@ def _generate_single(db: Session, req: AudioGenerateRequest, text: str, index: i
         model=req.model,
         script_text=text,
         file_path=relative_path,
-        notes="audio_studio",
         generation_params=json.dumps(gen_params),
     )
     db.add(v)

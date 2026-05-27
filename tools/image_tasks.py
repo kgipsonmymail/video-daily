@@ -51,6 +51,13 @@ def _mark_run(session, run_id: str, status: str, api_resp_id: str | None = None,
     )
 
 
+def _build_rel_path(out_path: Path) -> str:
+    """构建相对于项目根目录的 POSIX 路径（用于数据库存储）。"""
+    proj_root = Path(__file__).parent.parent
+    rel = out_path.relative_to(proj_root)
+    return str(rel).replace("\\", "/")
+
+
 def run_t2i_task(
     client: MiniMaxClient,
     prompt: str,
@@ -63,7 +70,7 @@ def run_t2i_task(
     prompt_optimizer: bool = False,
 ) -> tuple[list[Path], str]:
     """
-    文生图：调用 MiniMax 文生图 API，结果存入数据库和 works/ 目录。
+    文生图：调用 MiniMax 文生图 API，结果存入数据库和 works/t2i/ 目录。
     返回 (产物路径列表, run_id)。
     """
     init_db()
@@ -73,10 +80,13 @@ def run_t2i_task(
     run_id = _build_run_id(ts, theme, "t2i", variant)
 
     try:
-        # 保存 prompt 文件
-        prompt_subdir = prompts_dir(today) / "t2i"
-        prompt_subdir.mkdir(parents=True, exist_ok=True)
-        (prompt_subdir / f"{run_id}.txt").write_text(prompt, encoding="utf-8")
+        # 新目录结构: works/t2i/YYYY-MM-DD/
+        out_dir = assets_dir("t2i", today)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # 保存 prompt 文件（与素材同目录，同名不同后缀）
+        prompt_file = out_dir / f"{run_id}.prompt.txt"
+        prompt_file.write_text(prompt, encoding="utf-8")
 
         # upsert prompt 记录（去重）
         prompt_row = upsert_prompt(session, prompt, theme=theme)
@@ -106,19 +116,14 @@ def run_t2i_task(
         _mark_run(session, run_id, "success", api_resp_id=api_id)
 
         # 下载并写 asset 记录
-        out_dir = assets_dir(today) / "images" / "t2i"
-        out_dir.mkdir(parents=True, exist_ok=True)
         paths: list[Path] = []
         for i, url in enumerate(image_urls):
             fname = f"{run_id}_{i+1}.png"
             out_path = out_dir / fname
             urllib.request.urlretrieve(url, out_path)
-            # Use POSIX slashes for cross-platform DB compatibility
-            proj_root = Path(__file__).parent.parent.parent
-            rel_parts = out_path.relative_to(proj_root).parts
-            rel = str(Path(*rel_parts[1:]))  # drop first component (project dir name)
+            rel = _build_rel_path(out_path)
             create_asset(
-                session, run_id=run_id, file_path=str(rel),
+                session, run_id=run_id, file_path=rel,
                 modality="image", sub_type="t2i", prompt_id=prompt_row.id,
                 aspect_ratio=aspect_ratio, seed=seed,
             )
@@ -157,10 +162,13 @@ def run_i2i_task(
     run_id = _build_run_id(ts, theme, "i2i", variant)
 
     try:
+        # 新目录结构: works/i2i/YYYY-MM-DD/
+        out_dir = assets_dir("i2i", today)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
         # 保存 prompt 文件
-        prompt_subdir = prompts_dir(today) / "i2i"
-        prompt_subdir.mkdir(parents=True, exist_ok=True)
-        (prompt_subdir / f"{run_id}.txt").write_text(prompt, encoding="utf-8")
+        prompt_file = out_dir / f"{run_id}.prompt.txt"
+        prompt_file.write_text(prompt, encoding="utf-8")
 
         prompt_row = upsert_prompt(session, prompt, theme=theme)
 
@@ -192,19 +200,14 @@ def run_i2i_task(
 
         _mark_run(session, run_id, "success", api_resp_id=api_id)
 
-        out_dir = assets_dir(today) / "images" / "i2i"
-        out_dir.mkdir(parents=True, exist_ok=True)
         paths: list[Path] = []
         for i, url in enumerate(image_urls):
             fname = f"{run_id}_{i+1}.png"
             out_path = out_dir / fname
             urllib.request.urlretrieve(url, out_path)
-            # Use POSIX slashes for cross-platform DB compatibility
-            proj_root = Path(__file__).parent.parent.parent
-            rel_parts = out_path.relative_to(proj_root).parts
-            rel = str(Path(*rel_parts[1:]))  # drop first component (project dir name)
+            rel = _build_rel_path(out_path)
             create_asset(
-                session, run_id=run_id, file_path=str(rel),
+                session, run_id=run_id, file_path=rel,
                 modality="image", sub_type="i2i", prompt_id=prompt_row.id,
                 aspect_ratio=aspect_ratio, seed=seed,
             )

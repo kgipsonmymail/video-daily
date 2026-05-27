@@ -237,8 +237,8 @@ def _run_single_music_track(args) -> dict:
         if not hex_audio:
             raise Exception("No audio in response")
 
-        # 保存文件
-        out_dir = pathlib.Path(assets_dir(today)) / "music"
+        # 保存文件: works/music/YYYY-MM-DD/
+        out_dir = pathlib.Path(assets_dir("music", today))
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{run_id}.mp3"
         _hex_to_file(hex_audio, out_path)

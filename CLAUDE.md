@@ -45,14 +45,29 @@ video-daily/
 │   ├── scheduler.py      # 每日 8 点调度器
 │   ├── matrix_brainstorm.py  # 矩阵提示词生成器
 │   └── pipeline.py       # 巨树世界管线入口
-├── works/                # 生成产物存储
+├── works/                # 生成产物存储（新结构：第一层按生成方式，第二层按日期）
 │   ├── video-daily.db    # SQLite (本地备用)
-│   └── YYYY-MM-DD/       # 每日输出
-│       ├── prompts/     # t2i/i2i/t2v/i2v/music/
-│       └── assets/
-│           ├── images/  # t2i/i2i/refs/
-│           ├── videos/ # t2v/i2v/flf/s2v/
-│           └── music/
+│   ├── t2i/              # 文生图
+│   │   └── YYYY-MM-DD/
+│   │       ├── {run_id}.png
+│   │       └── {run_id}.prompt.txt
+│   ├── i2i/              # 图生图
+│   │   └── YYYY-MM-DD/
+│   ├── t2v/              # 文生视频（含 fl2v、s2v）
+│   │   └── YYYY-MM-DD/
+│   ├── i2v/              # 图生视频
+│   │   └── YYYY-MM-DD/
+│   ├── tts/              # 文本转语音
+│   │   └── YYYY-MM-DD/
+│   ├── music/            # 音乐生成
+│   │   └── YYYY-MM-DD/
+│   │       └── matrix-{name}/  # 矩阵第四层
+│   │           ├── config.json
+│   │           └── r0c0.mp3
+│   ├── voice-samples/    # 音色样本
+│   │   └── {voice_id}/
+│   │       └── sample.mp3
+│   └── uploads/          # 用户上传文件
 ├── ref/api/              # MiniMax API 参考文档 (本地)
 │   ├── image/
 │   ├── video/
@@ -110,6 +125,18 @@ cd frontend && npm run dev
 {ts}__{theme}__{category}__{variant}__v{nnn}.{ext}
 例: 20260424_015015__giant-tree__t2i__farmer-panorama__v001.png
 ```
+
+提示词文件与素材同名不同后缀：`{run_id}.prompt.txt`
+
+### 素材存储规范
+
+**目录结构**: `works/{modality}/{YYYY-MM-DD}/`
+- 第一层：生成方式（t2i, i2i, t2v, i2v, tts, music, voice-samples）
+- 第二层：日期
+- 第三层：素材文件 + 提示词文件（同名不同后缀）
+- 第四层（矩阵）：`matrix-{name}/` + `config.json`
+
+**路径格式**: 使用 POSIX 正斜杠 `/`，存入数据库时统一格式
 
 ### 额度限制
 

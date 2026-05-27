@@ -38,18 +38,6 @@ with engine.connect() as conn:
     """))
     conn.commit()
 
-# 修复 music assets 路径：统一用正斜杠，有 works/ 则保留，无则加上
-with engine.connect() as conn:
-    conn.execute(text("""
-        UPDATE assets
-        SET file_path = CASE
-            WHEN file_path LIKE 'works/%' THEN REPLACE(file_path, '\\\\', '/')
-            ELSE CONCAT('works/', REPLACE(file_path, '\\\\', '/'))
-        END
-        WHERE modality = 'music' AND (file_path LIKE '%\\\\%' OR file_path NOT LIKE 'works/%')
-    """))
-    conn.commit()
-
 app = FastAPI(title="Video Daily API", version="1.0.0")
 
 # 允许 React 前端跨域访问

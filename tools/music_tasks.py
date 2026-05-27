@@ -6,7 +6,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from .config import assets_dir, prompts_dir, today_str, get_quota_bucket, log_quota_usage
+from .config import assets_dir, today_str, get_quota_bucket, log_quota_usage
 from .db import (
     create_run, create_asset, upsert_prompt,
     get_or_create_quota, get_session, init_db,
@@ -50,6 +50,13 @@ def _hex_to_file(hex_str: str, out_path: Path) -> None:
     out_path.write_bytes(audio_data)
 
 
+def _build_rel_path(out_path: Path) -> str:
+    """构建相对于项目根目录的 POSIX 路径（用于数据库存储）。"""
+    proj_root = Path(__file__).parent.parent
+    rel = out_path.relative_to(proj_root)
+    return str(rel).replace("\\", "/")
+
+
 def _check_and_charge_quota(session, model: str, run_id: str = "") -> None:
     today = today_str()
     bucket_name, limit = get_quota_bucket(model)
@@ -79,7 +86,7 @@ def run_music_task(
     lyrics_optimizer: bool = False,
 ) -> tuple[Path, str]:
     """
-    音乐生成：调用 MiniMax 音乐生成 API，结果写入 MySQL 数据库和 works/ 目录。
+    音乐生成：调用 MiniMax 音乐生成 API，结果写入 MySQL 数据库和 works/music/ 目录。
     返回 (本地音频路径, run_id)。
 
     API 文档：ref/api/music/音乐生成_Music_Generation.md
@@ -91,10 +98,12 @@ def run_music_task(
     run_id = _build_run_id(ts, theme, "music", variant)
 
     try:
-        # 保存 prompt 文件
-        prompt_subdir = prompts_dir(today) / "music"
-        prompt_subdir.mkdir(parents=True, exist_ok=True)
-        prompt_file = prompt_subdir / f"{run_id}.txt"
+        # 新目录结构: works/music/YYYY-MM-DD/
+        out_dir = assets_dir("music", today)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # 保存 prompt 文件（与素材同目录，同名不同后缀）
+        prompt_file = out_dir / f"{run_id}.prompt.txt"
         prompt_file.write_text(f"prompt: {prompt}\nlyrics:\n{lyrics}", encoding="utf-8")
 
         prompt_row = upsert_prompt(session, prompt, theme=theme)
@@ -122,8 +131,6 @@ def run_music_task(
         if not hex_audio:
             raise Exception("No audio data in response")
 
-        out_dir = assets_dir(today) / "music"
-        out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{run_id}.mp3"
         _hex_to_file(hex_audio, out_path)
 
@@ -135,11 +142,9 @@ def run_music_task(
             {"rid": run_id},
         )
 
-        proj_root = Path(__file__).parent.parent.parent
-        rel_parts = out_path.relative_to(proj_root).parts
-        rel = str(Path(*rel_parts[1:]))
+        rel = _build_rel_path(out_path)
         create_asset(
-            session, run_id=run_id, file_path=str(rel),
+            session, run_id=run_id, file_path=rel,
             modality="music", sub_type="song", prompt_id=prompt_row.id,
         )
         print(f"[MUSIC] → {out_path}")

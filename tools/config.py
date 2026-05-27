@@ -15,8 +15,6 @@ API_BASE_URL = "https://api.minimaxi.com"
 # 路径配置
 PROJECT_ROOT = Path(__file__).parent.parent
 WORKS_DIR = PROJECT_ROOT / "works"
-PHOTO_DIR = WORKS_DIR / "photo"
-VIDEO_DIR = WORKS_DIR / "video"
 
 # SQLite（仅用于本地 pipeline，线上使用 MySQL）
 DB_PATH = WORKS_DIR / "video-daily.db"
@@ -31,8 +29,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
 def get_mysql_url() -> str:
     return (
-        f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}"
-        f"@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+        f"mysql+pymysql://{DB_USER}:***@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
     )
 
 
@@ -40,30 +37,45 @@ def today_str() -> str:
     return date.today().isoformat()
 
 
+# ── 新目录结构：第一层按生成方式，第二层按日期 ────────────────────────────────
+
+def modality_dir(modality: str, d: str | None = None) -> Path:
+    """
+    获取指定生成方式的日期目录。
+    modality: t2i, i2i, t2v, i2v, tts, music
+    返回: works/{modality}/{date}/
+    """
+    tag = d or today_str()
+    return WORKS_DIR / modality / tag
+
+
+def prompts_dir(modality: str, d: str | None = None) -> Path:
+    """提示词目录（与素材同目录，同名不同后缀）"""
+    return modality_dir(modality, d)
+
+
+def assets_dir(modality: str, d: str | None = None) -> Path:
+    """素材目录（与旧版兼容，现在直接返回 modality 目录）"""
+    return modality_dir(modality, d)
+
+
+def voice_samples_dir() -> Path:
+    """音色样本目录: works/voice-samples/"""
+    return WORKS_DIR / "voice-samples"
+
+
+# ── 旧版兼容（逐步废弃） ──────────────────────────────────────────────────────
+
 def date_dir(d: str | None = None) -> Path:
+    """旧版：works/YYYY-MM-DD/（已废弃，使用 modality_dir）"""
     tag = d or today_str()
     return WORKS_DIR / tag
 
 
-def prompts_dir(d: str | None = None) -> Path:
-    return date_dir(d) / "prompts"
-
-
-def assets_dir(d: str | None = None) -> Path:
-    return date_dir(d) / "assets"
-
-
 def ensure_dirs() -> None:
-    """确保必要的目录存在"""
-    PHOTO_DIR.mkdir(parents=True, exist_ok=True)
-    VIDEO_DIR.mkdir(parents=True, exist_ok=True)
-    # 新结构
-    for subdir in ["t2i", "i2i", "refs"]:
-        (assets_dir() / "images" / subdir).mkdir(parents=True, exist_ok=True)
-    for subdir in ["t2v", "i2v", "flf", "s2v"]:
-        (assets_dir() / "videos" / subdir).mkdir(parents=True, exist_ok=True)
-    for subdir in ["t2i", "i2i", "t2v", "i2v", "music"]:
-        (prompts_dir() / subdir).mkdir(parents=True, exist_ok=True)
+    """确保所有生成方式的根目录存在"""
+    for modality in ["t2i", "i2i", "t2v", "i2v", "tts", "music", "voice-samples"]:
+        (WORKS_DIR / modality).mkdir(parents=True, exist_ok=True)
 
 
 def get_api_key() -> str:
