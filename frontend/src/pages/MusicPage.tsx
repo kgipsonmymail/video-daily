@@ -345,7 +345,7 @@ function SingleMusicTab() {
                   key={f.value}
                   onClick={() => update("output_format", f.value)}
                   style={{
-                    flex: 1, padding: "6px 0", borderRadius: 8, border: "none",
+                    flex: 1, padding: "6px 0", borderRadius: 8,
                     background: params.output_format === f.value
                       ? "rgba(123,79,196,0.15)" : "rgba(255,255,255,0.5)",
                     color: params.output_format === f.value ? "#7b4fc4" : "#8a8394",
@@ -660,7 +660,7 @@ function LyricsTab() {
                   key={m.value}
                   onClick={() => setMode(m.value as typeof mode)}
                   style={{
-                    flex: 1, padding: "6px 0", borderRadius: 8, border: "none",
+                    flex: 1, padding: "6px 0", borderRadius: 8,
                     background: mode === m.value ? "rgba(123,79,196,0.15)" : "rgba(255,255,255,0.5)",
                     color: mode === m.value ? "#7b4fc4" : "#8a8394",
                     fontSize: 12, fontWeight: 500, cursor: "pointer",

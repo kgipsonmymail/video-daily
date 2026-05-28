@@ -36,7 +36,7 @@ for group_name, group_data in [('中文音色', zh), ('英文音色', en), ('日
 
 md_content = '\n'.join(lines)
 
-out_path = r'C:\Users\REDACTED\Documents\010工作台\program\claudecode\video-daily\ref\api\voice\音色列表.md'
+out_path = os.path.join(os.path.dirname(__file__), '音色列表.md')
 with open(out_path, 'w', encoding='utf-8') as f:
     f.write(md_content)
 

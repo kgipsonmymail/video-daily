@@ -183,7 +183,7 @@ export default function QueuePage() {
       image2Path = res.file_path;
     }
 
-    createMut.mutate({ category: cat, prompt_text: prompt.trim(), model, notes: notes.trim() || undefined, image: imagePath, image2: image2Path, aspect_ratio: aspectRatio, duration: duration, resolution: resolution, is_instrumental: isInstrumental });
+    createMut.mutate({ category: cat, prompt_text: prompt.trim(), model, notes: notes.trim() || undefined, image: imagePath, image2: image2Path, aspect_ratio: aspectRatio });
   }
 
   return (
