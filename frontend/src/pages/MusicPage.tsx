@@ -196,7 +196,7 @@ function SingleMusicTab() {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(400px, 100%), 1fr))", gap: 24, alignItems: "start" }}>
       {/* 左侧：参数表单 */}
       <div style={{
         background: "rgba(255,255,255,0.75)",
@@ -363,7 +363,7 @@ function SingleMusicTab() {
           {/* 音频设置 */}
           <div>
             <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 4, display: "block" }}>音频设置</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(120px, 100%), 1fr))", gap: 8 }}>
               <select
                 value={params.audio_setting?.sample_rate || 44100}
                 onChange={(e) => update("audio_setting", {

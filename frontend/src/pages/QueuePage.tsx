@@ -198,7 +198,7 @@ export default function QueuePage() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(400px, 100%), 1fr))", gap: 20, alignItems: "start" }}>
 
         {/* 左侧：提交新任务 */}
         <div>

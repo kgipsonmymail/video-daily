@@ -107,7 +107,7 @@ export default function QueryPage({ modality, favoritesOnly }: Props) {
           <div style={{ fontSize: 12, color: "#bdb9c8", marginBottom: 16 }}>
             找到 {assets.length} 条资产
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 14 }}>
             {assets.map((asset) => (
               <AssetCard key={asset.id} asset={asset} />
             ))}

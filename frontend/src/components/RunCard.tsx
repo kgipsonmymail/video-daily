@@ -51,6 +51,7 @@ export default function RunCard({ run, assets, modality }: Props) {
           background: expanded ? "rgba(245,240,252,0.6)" : "rgba(255,255,255,0.3)",
           borderBottom: expanded ? "1px solid rgba(200,195,215,0.25)" : "1px solid transparent",
           transition: "all 0.18s ease",
+          flexWrap: "wrap",
         }}
       >
         {/* 收藏按钮 */}
@@ -76,7 +77,7 @@ export default function RunCard({ run, assets, modality }: Props) {
         </span>
 
         {/* run ID */}
-        <span style={{ fontFamily: "monospace", fontSize: 12, color: "#6b6375", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ fontFamily: "monospace", fontSize: 12, color: "#6b6375", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {run.id}
         </span>
 
@@ -108,7 +109,7 @@ export default function RunCard({ run, assets, modality }: Props) {
 
       {/* 展开内容 */}
       {expanded && (
-        <div style={{ padding: "16px 20px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+        <div style={{ padding: "16px 20px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 14 }}>
           {filtered.length === 0 ? (
             <div style={{ color: "#bdb9c8", fontSize: 13, padding: "20px 0", textAlign: "center" }}>
               暂无匹配类型的资产

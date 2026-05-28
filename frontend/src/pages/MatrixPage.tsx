@@ -552,7 +552,7 @@ export default function MatrixPage() {
       {tab === "image" && (
         <>
           {mode === "edit" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(400px, 100%), 1fr))", gap: 20, alignItems: "start" }}>
           {/* 左侧：配置编辑 */}
           <div>
             {/* 名称 */}
@@ -872,7 +872,7 @@ function MusicMatrix() {
       </div>
 
       {tab2 === "edit" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(400px, 100%), 1fr))", gap: 20 }}>
           <div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 6, display: "block" }}>矩阵名称</label>
@@ -1385,7 +1385,7 @@ function ImageI2IMatrix() {
       </div>
 
       {tab2 === "edit" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(400px, 100%), 1fr))", gap: 20, alignItems: "start" }}>
           {/* 左侧 */}
           <div>
             {/* 名称 */}

@@ -503,7 +503,7 @@ function VoicePreviewTab({ samples, selectedLang, setSelectedLang, previewingId,
       </div>
 
       {/* 音色网格 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(200px, 100%), 1fr))", gap: 10 }}>
         {filteredVoices.map((voice) => {
           const generated = samples.some((s) => s.voice_id === voice.voice_id);
           return (
@@ -611,7 +611,7 @@ function AudioStudioTab({ samples, playingId, pausedId, onPlayOrPause, onToggleF
   const studioSamples = samples.filter((s) => s.notes === "audio_studio" || s.file_path.includes("audio_studio"));
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 24, alignItems: "start" }}>
       {/* 左侧：参数表单 */}
       <div style={{
         background: "rgba(255,255,255,0.75)",
@@ -725,7 +725,7 @@ function AudioStudioTab({ samples, playingId, pausedId, onPlayOrPause, onToggleF
             </select>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 10 }}>
             {/* 采样率 */}
             <div>
               <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 4, display: "block" }}>采样率</label>
@@ -767,7 +767,7 @@ function AudioStudioTab({ samples, playingId, pausedId, onPlayOrPause, onToggleF
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 10 }}>
             {/* 格式 */}
             <div>
               <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 4, display: "block" }}>格式</label>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { AssetResponse } from "../types";
 
-const FILE_BASE = "http://localhost:8000/files";
+const FILE_BASE = "/files";
 
 function fileUrl(fp: string) {
   return `${FILE_BASE}/${fp}`;
