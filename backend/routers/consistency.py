@@ -168,16 +168,22 @@ def generate_base_images(test_id: int, db: Session = Depends(get_db)):
                     # 下载图片
                     import requests as req
                     resp = req.get(urls[0], timeout=60)
-                    filename = f"consistency-base-{char_id}.png"
-                    filepath = out_dir / filename
-                    filepath.write_bytes(resp.content)
+                    if resp.status_code == 200:
+                        filename = f"consistency-base-{char_id}.png"
+                        filepath = out_dir / filename
+                        filepath.write_bytes(resp.content)
+                        print(f"[BASE] {name} → {filepath} ({len(resp.content)} bytes)")
+                    else:
+                        print(f"[BASE] {name} DOWNLOAD FAILED: HTTP {resp.status_code}")
+                        continue
 
                     rel_path = str(filepath.relative_to(PROJECT_ROOT)).replace("\\", "/")
                     session.execute(text(
                         "UPDATE consistency_characters SET base_image = :img WHERE id = :id"
                     ), {"img": rel_path, "id": char_id})
                     session.commit()
-                    print(f"[BASE] {name} → {rel_path}")
+                else:
+                    print(f"[BASE] {name} FAILED: no image_urls in response")
             except Exception as e:
                 print(f"[BASE] {name} FAILED: {e}")
 
@@ -243,33 +249,47 @@ def generate_variations(test_id: int, db: Session = Depends(get_db)):
 
         for char_id, char_name, base_image, var_id, var_type, var_prompt in all_vars:
             try:
-                # 构建参考图 URL（需要公网可访问）
-                # 如果是本地文件，需要通过 /files/ 端点提供
+                # 使用 base64 编码参考图（API 不支持需要认证的 URL）
+                import base64
                 if base_image and not base_image.startswith("http"):
-                    ref_url = f"https://mnm.7ygv.com/files/{base_image}"
+                    img_path = PROJECT_ROOT / base_image
+                    if img_path.exists():
+                        with open(img_path, "rb") as f:
+                            img_b64 = base64.b64encode(f.read()).decode()
+                        ref_data = f"data:image/png;base64,{img_b64}"
+                    else:
+                        print(f"[VAR] {char_name} × {var_type} SKIP: base image not found at {img_path}")
+                        continue
                 else:
-                    ref_url = base_image
+                    ref_data = base_image
 
                 result = client.create_image_task(
                     model="image-01",
                     prompt=var_prompt,
                     aspect_ratio="1:1",
                     n=1,
-                    subject_reference=[{"type": "character", "image_file": ref_url}],
+                    subject_reference=[{"type": "character", "image_file": ref_data}],
                 )
                 urls = result.get("data", {}).get("image_urls", [])
                 if urls:
                     resp = req.get(urls[0], timeout=60)
-                    filename = f"consistency-var-{var_id}.png"
-                    filepath = out_dir / filename
-                    filepath.write_bytes(resp.content)
+                    if resp.status_code == 200:
+                        filename = f"consistency-var-{var_id}.png"
+                        filepath = out_dir / filename
+                        filepath.write_bytes(resp.content)
+                        print(f"[VAR] {char_name} × {var_type} → {filepath} ({len(resp.content)} bytes)")
+                    else:
+                        print(f"[VAR] {char_name} × {var_type} DOWNLOAD FAILED: HTTP {resp.status_code}")
+                        continue
+                else:
+                    print(f"[VAR] {char_name} × {var_type} FAILED: no image_urls in response")
+                    continue
 
-                    rel_path = str(filepath.relative_to(PROJECT_ROOT)).replace("\\", "/")
-                    session.execute(text(
-                        "UPDATE consistency_variations SET image_path = :img WHERE id = :id"
-                    ), {"img": rel_path, "id": var_id})
-                    session.commit()
-                    print(f"[VAR] {char_name} × {var_type} → {rel_path}")
+                rel_path = str(filepath.relative_to(PROJECT_ROOT)).replace("\\", "/")
+                session.execute(text(
+                    "UPDATE consistency_variations SET image_path = :img WHERE id = :id"
+                ), {"img": rel_path, "id": var_id})
+                session.commit()
             except Exception as e:
                 print(f"[VAR] {char_name} × {var_type} FAILED: {e}")
 
