@@ -357,9 +357,18 @@ export default function MatrixPage() {
 
   useEffect(() => {
     if (mode !== "view" || activeConfigId === null || historyAssets.length === 0) return;
+    // 从 config 对象解析，与 Grid 渲染使用同一份数据，避免 state 更新时序问题
+    const cfg = configList.find((c) => c.id === activeConfigId);
+    if (!cfg) return;
+    const cfgSubjects = parseLines(cfg.subjects_text);
+    const cfgStyleLabels = parseLines(cfg.styles_text).map((s) => {
+      const pipeIdx = s.indexOf("|");
+      if (pipeIdx > 0) return { abbr: s.slice(0, pipeIdx).trim(), full: s.slice(pipeIdx + 1).trim() };
+      return { abbr: s.split(",")[0].slice(0, 8).trim(), full: s };
+    });
     const newCells: Record<string, Cell> = {};
     for (const asset of historyAssets) {
-      let pos = parseVariantToRowCol(asset.variant || "", subjects, styleLabels);
+      let pos = parseVariantToRowCol(asset.variant || "", cfgSubjects, cfgStyleLabels);
       if (!pos) pos = variantToRowCol(asset.variant || "");
       if (pos) {
         newCells[`${pos.row}-${pos.col}`] = { row: pos.row, col: pos.col, status: "done", asset };
@@ -383,7 +392,7 @@ export default function MatrixPage() {
         return merged;
       });
     }
-  }, [mode, activeConfigId, historyAssets, subjects, styleLabels]);
+  }, [mode, activeConfigId, historyAssets, configList]);
 
   // 默认 RV 主题的 base prompt（后端重启后改用 cfg.prompt_base）
   const RV_BASE = "A recreational vehicle (RV) scene, cinematic composition, highly detailed";

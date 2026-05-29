@@ -183,8 +183,9 @@ export default function Layout({ page, modality, onModalityChange, favoritesOnly
           </button>
 
           {/* Logo */}
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#3d3545" }}>
-            🌿 Video Daily
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <img src="/logo.png" alt="" style={{ width: 28, height: 28, borderRadius: 6 }} />
+            <span style={{ fontSize: 18, fontWeight: 700, color: "#3d3545" }}>minimax工坊</span>
           </div>
         </div>
       )}
@@ -211,11 +212,12 @@ export default function Layout({ page, modality, onModalityChange, favoritesOnly
         {/* Logo 区域（桌面端显示） */}
         {!isMobile && (
           <div style={{ padding: "0 4px" }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#3d3545", letterSpacing: "-0.3px" }}>
-              🌿 Video Daily
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <img src="/logo.png" alt="" style={{ width: 32, height: 32, borderRadius: 7 }} />
+              <span style={{ fontSize: 22, fontWeight: 700, color: "#3d3545", letterSpacing: "-0.3px" }}>minimax工坊</span>
             </div>
             <div style={{ fontSize: 11, color: "#bdb9c8", marginTop: 3 }}>
-              巨树世界 · 每日灵感
+              AI 素材生成平台
             </div>
           </div>
         )}

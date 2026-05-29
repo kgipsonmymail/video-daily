@@ -265,3 +265,134 @@ def retry_music_matrix(config_id: int, db: Session = Depends(get_db)):
     submit_music_matrix_async(config_id, pending, "")
 
     return {"ok": True, "pending": len(pending), "message": f"重启 {len(pending)} 个任务"}
+
+
+@router.post("/music/sync/{config_id}")
+def sync_music_matrix(config_id: int, db: Session = Depends(get_db)):
+    """
+    扫描磁盘上已有的音乐文件，同步到数据库。
+    解决独立脚本生成后前端显示 pending 的问题。
+    """
+    import pathlib
+    from datetime import datetime
+
+    # 查配置
+    cfg = db.execute(
+        text("SELECT id, name, prompts_text, theme, notes, created_at FROM music_matrix_configs WHERE id = :id"),
+        {"id": config_id},
+    ).fetchone()
+    if not cfg:
+        raise HTTPException(status_code=404, detail="配置不存在")
+
+    # 解析 prompts_text 获取所有 track
+    tracks = []
+    for line in cfg[2].strip().split("\n"):
+        line = line.strip()
+        if "::" not in line:
+            continue
+        idx_part, prompt = line.split("::", 1)
+        try:
+            r, c = idx_part.split(",")
+            tracks.append({"row": int(r), "col": int(c), "prompt": prompt.strip()})
+        except ValueError:
+            continue
+
+    # 查找已有的 runs
+    existing = {}
+    result = db.execute(text("SELECT id, variant, status FROM runs WHERE matrix_name = :name"),
+                        {"name": f"music-matrix-{config_id}"})
+    for row in result:
+        existing[row[1]] = {"id": row[0], "status": row[2]}
+
+    # 查找已有的 assets
+    existing_assets = set()
+    result = db.execute(text("""
+        SELECT r.variant FROM assets a JOIN runs r ON r.id = a.run_id
+        WHERE r.matrix_name = :name AND a.modality = 'music'
+    """), {"name": f"music-matrix-{config_id}"})
+    for row in result:
+        existing_assets.add(row[0])
+
+    now = datetime.now()
+    created_at = now.strftime("%Y-%m-%d %H:%M:%S")
+    today = now.strftime("%Y-%m-%d")
+    theme = cfg[3] or "game-bgm"
+
+    # 可能的文件路径模式
+    proj_root = pathlib.Path(__file__).parent.parent.parent
+    synced = []
+    skipped = []
+    errors = []
+
+    for t in tracks:
+        variant = f"r{t['row']}c{t['col']}"
+        run_id = f"{today}__{theme}__music__{variant}__v001"
+
+        # 检查多种可能的文件路径
+        possible_paths = [
+            proj_root / "works" / "music" / today / f"matrix-music-matrix-{config_id}" / f"{variant}.mp3",
+            proj_root / "works" / "music" / today / f"{run_id}.mp3",
+        ]
+
+        file_path = None
+        for p in possible_paths:
+            if p.exists() and p.stat().st_size > 0:
+                file_path = p
+                break
+
+        if not file_path:
+            skipped.append(variant)
+            continue
+
+        # 计算相对路径
+        rel_path = str(file_path.relative_to(proj_root)).replace("\\", "/")
+
+        try:
+            if variant in existing:
+                # 更新现有 run
+                if existing[variant]["status"] != "success":
+                    db.execute(text("UPDATE runs SET status = 'success', error_msg = NULL WHERE id = :rid"),
+                               {"rid": existing[variant]["id"]})
+
+                # 检查 asset 是否存在
+                if variant not in existing_assets:
+                    db.execute(text("""
+                        INSERT INTO assets (run_id, file_path, modality, created_at)
+                        VALUES (:run_id, :file_path, 'music', :created_at)
+                    """), {"run_id": existing[variant]["id"], "file_path": rel_path, "created_at": created_at})
+            else:
+                # 创建新 run
+                db.execute(text("""
+                    INSERT INTO runs (id, theme, category, model, variant, status, is_favorite,
+                                      created_at, quota_date, matrix_name, config_id)
+                    VALUES (:run_id, :theme, 'music', 'music-2.6', :variant, 'success', 0,
+                            :created_at, :quota_date, :matrix_name, :config_id)
+                """), {
+                    "run_id": run_id, "theme": theme, "variant": variant,
+                    "created_at": created_at, "quota_date": today,
+                    "matrix_name": f"music-matrix-{config_id}", "config_id": config_id
+                })
+
+                # 创建 asset
+                db.execute(text("""
+                    INSERT INTO assets (run_id, file_path, modality, created_at)
+                    VALUES (:run_id, :file_path, 'music', :created_at)
+                """), {"run_id": run_id, "file_path": rel_path, "created_at": created_at})
+
+            synced.append(variant)
+        except Exception as e:
+            errors.append({"variant": variant, "error": str(e)})
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "synced": len(synced),
+        "skipped": len(skipped),
+        "errors": len(errors),
+        "details": {
+            "synced": synced,
+            "skipped": skipped,
+            "errors": errors,
+        }
+    }
