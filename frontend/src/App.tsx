@@ -9,6 +9,7 @@ import QueuePage from "./pages/QueuePage";
 import MatrixPage from "./pages/MatrixPage";
 import MusicPage from "./pages/MusicPage";
 import VoicePage from "./pages/VoicePage";
+import ConsistencyPage from "./pages/ConsistencyPage";
 import type { Page, Modality } from "./types";
 
 const queryClient = new QueryClient({
@@ -81,6 +82,12 @@ function AppContent() {
           path="/voices"
           element={
             <VoicePage />
+          }
+        />
+        <Route
+          path="/consistency"
+          element={
+            <ConsistencyPage />
           }
         />
         <Route path="*" element={<Navigate to="/tasks" replace />} />

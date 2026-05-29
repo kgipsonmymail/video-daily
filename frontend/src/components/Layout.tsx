@@ -7,6 +7,7 @@ const PAGES: { id: Page; label: string; icon: string }[] = [
   { id: "queue", label: "任务队列", icon: "📤" },
   { id: "matrix", label: "素材矩阵", icon: "🎮" },
   { id: "music", label: "音乐生成", icon: "🎵" },
+  { id: "consistency", label: "一致性测试", icon: "🎭" },
   { id: "query", label: "查询历史", icon: "🔍" },
   { id: "daily", label: "每日界面", icon: "📅" },
   { id: "voices", label: "音色管理", icon: "🎙️" },

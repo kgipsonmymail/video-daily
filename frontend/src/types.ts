@@ -95,7 +95,7 @@ export interface QuotaCreate {
 }
 
 export type Modality = "all" | "image" | "music" | "video";
-export type Page = "tasks" | "queue" | "matrix" | "music" | "query" | "daily" | "voices" | "audio";
+export type Page = "tasks" | "queue" | "matrix" | "music" | "query" | "daily" | "voices" | "audio" | "consistency";
 
 export interface TaskQueueResponse {
   id: number;

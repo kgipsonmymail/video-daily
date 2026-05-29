@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models import Base
 from backend.database import engine
-from backend.routers import runs, assets, prompts, quotas, tasks, generate, matrix, voices, audio, music, chat
+from backend.routers import runs, assets, prompts, quotas, tasks, generate, matrix, voices, audio, music, chat, consistency
 
 # 项目根目录，用于静态文件访问
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -61,6 +61,7 @@ app.include_router(voices.router, prefix="/api/voices", tags=["音色管理"])
 app.include_router(audio.router, prefix="/api/audio", tags=["音频工坊"])
 app.include_router(music.router, prefix="/api/music", tags=["音乐生成"])
 app.include_router(chat.router, prefix="/api/chat", tags=["文本对话"])
+app.include_router(consistency.router, prefix="/api/consistency", tags=["一致性测试"])
 
 
 @app.get("/api/health")
