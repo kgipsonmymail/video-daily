@@ -93,7 +93,9 @@ video-daily/
 
 工具模块 (tools/)
     ├── scheduler.py — 读取 task_queue，执行任务，写入 MySQL runs/assets/quotas
-    └── pipeline.py — 独立运行，直接写 MySQL
+    ├── pipeline.py — 独立运行，直接写 MySQL
+    ├── gen_music_independent.py — 独立音乐生成（带自动数据库同步）
+    └── sync_music_matrix.py — 音乐矩阵同步工具（扫描磁盘文件→写入数据库）
 
 前端 (frontend/)
     ├── pages/MatrixPage.tsx — 调用 tools/matrix_brainstorm.py 生成矩阵

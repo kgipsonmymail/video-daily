@@ -485,3 +485,74 @@ const base = cfg.prompt_base !== undefined
 
 - 抓取 MiniMax API 文档（text/voice/video/image/music/file 子目录）
 - 音乐生成 API 支持
+
+---
+
+## 2026-05-29
+
+### 音乐矩阵同步机制 + 前端品牌化
+
+**问题根因：**
+1. 后端线程池 `submit_music_matrix_async` 并发 4 worker → quota 表 INSERT 锁冲突 → 任务卡死在 `running`
+2. 为绕过锁冲突，用独立脚本 `gen_music_v2.py` 直接调 MiniMax API
+3. 独立脚本只写文件到磁盘，不写 `runs` 和 `assets` 表
+4. 前端 API `GET /music/configs/{id}/tracks` 通过 JOIN runs+assets 判断状态 → 显示 `pending`
+5. 文件命名也不一致：脚本用 `matrix-music-matrix-2/r0c0.mp3`，数据库期望 `2026-05-29__game-bgm__music__r0c0__v001.mp3`
+
+**系统级修复：**
+
+1. **新增 API 端点** `POST /api/matrix/music/sync/{config_id}`
+   - 自动扫描磁盘文件（支持两种路径格式）
+   - 同步到 runs/assets 表
+   - 返回 synced/skipped/errors 统计
+
+2. **新增工具脚本**
+   - `tools/gen_music_independent.py` — 带自动同步的独立生成脚本
+     - `--workers N` 控制并发
+     - `--dry-run` 只检查不生成
+     - `--no-sync` 不同步数据库
+   - `tools/sync_music_matrix.py` — 独立同步命令行工具
+     - `--check` 只检查不修改
+
+3. **前端品牌化**
+   - Logo: 使用 mediary 同款 `logo.png`
+   - 名称: `Video Daily` → `minimax工坊`
+   - 副标题: `巨树世界·每日灵感` → `AI 素材生成平台`
+   - 浏览器标签: `frontend` → `minimax工坊`
+
+4. **MatrixPage useEffect 修复**
+   - 从 config 对象解析 subjects/styles（而非 state 变量）
+   - 解决 state 更新时序导致的 variant 匹配失败
+
+**验证：**
+- `POST /api/matrix/music/sync/2` → synced: 36, errors: 0
+- `GET /api/matrix/music/configs/2/tracks` → 36/36 done
+- 前端刷新可见 logo 和新名称
+
+**Git:** commit `e120982` → pushed to main
+
+---
+
+### 音乐矩阵批量生成（36首纯音乐）
+
+**配置：** Config ID 2, 6情绪×6曲风, music-2.6 模型
+**结果：** 36/36 完成（首次后端线程池卡死，用独立脚本重试成功）
+**额度消耗：** 约 42 次 API 调用（含超时重试和并发浪费）
+**文件位置：** `works/music/2026-05-29/matrix-music-matrix-2/r{0-5}c{0-5}.mp3`
+
+---
+
+### 图片矩阵批量生成（30张像素风）
+
+**配置：** Config ID 17, 5主体×6风格, image-01 模型
+**结果：** 30/30 完成
+**文件位置：** `works/t2i/2026-05-29/` 目录下
+
+---
+
+### MiniMax CLI 安装
+
+- 全局安装 `mmx-cli`
+- 登录 Token Plan
+- 安装官方 SKILL
+

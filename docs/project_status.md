@@ -137,6 +137,9 @@ python tools/scheduler.py
 - **ImageLightbox bug**：图片放大用 `100vw/100vh` 会变形，改为 `max-width/max-height`；添加 ESC 键关闭
 - **目录整理 (2026-04-28)**：`src/` → `tools/`，删除过时脚本，统一文档路径引用
 - **T2S 轮询超时修复**：`voices.py` / `audio.py` 轮询上限从 60 次提升到 180 次（5分钟 → 15分钟），解决部分音色 MiniMax 处理慢导致的 408 错误
+- **音乐矩阵同步机制 (2026-05-29)**：独立脚本生成音乐后前端显示 pending 的根因是脚本不写 runs/assets 表。新增 `POST /api/matrix/music/sync/{config_id}` 端点自动同步，配套工具 `tools/gen_music_independent.py` 和 `tools/sync_music_matrix.py`
+- **前端 useEffect 竞态修复 (2026-05-29)**：矩阵 view 模式下图片错位，因 state 更新时序导致 variant 匹配用错 subjects/styles。修复为从 config 对象直接解析
+- **前端品牌化 (2026-05-29)**：名称改为 minimax工坊，使用 mediary 同款 logo
 
 ## 已知限制
 

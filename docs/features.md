@@ -116,3 +116,35 @@ new_result = bm.adjust_existing_matrix(result, new_preset="ultra")
 **内置常量：**
 - `GIANT_TREE_PROMPT`：巨树世界默认 prompt
 - `GIANT_TREE_SCENES`：6 个场景描述列表
+---
+
+## 音乐矩阵同步机制
+
+**API 端点：** `POST /api/matrix/music/sync/{config_id}`
+
+**功能：** 扫描磁盘上已有的音乐文件，同步到数据库。解决独立脚本生成后前端显示 pending 的问题。
+
+**支持的文件路径格式：**
+1. `works/music/{date}/matrix-music-matrix-{id}/{variant}.mp3`（独立脚本格式）
+2. `works/music/{date}/{date}__{theme}__music__{variant}__v001.mp3`（后端格式）
+
+**返回值：**
+```json
+{
+  "ok": true,
+  "synced": 36,
+  "skipped": 0,
+  "errors": 0,
+  "details": {"synced": ["r0c0", ...], "skipped": [], "errors": []}
+}
+```
+
+**工具脚本：**
+- `tools/gen_music_independent.py` — 带自动同步的独立生成脚本
+- `tools/sync_music_matrix.py` — 独立同步命令行工具
+
+**使用场景：**
+- 独立脚本生成音乐后，自动或手动同步到数据库
+- 手动复制音乐文件到 works/ 目录后，同步到数据库
+- 调试前端显示状态不一致问题
+

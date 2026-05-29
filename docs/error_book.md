@@ -127,3 +127,82 @@
 - **现象**：点击"继续生成"后跳转历史页，cells 被重置为空状态（pending格子消失）
 - **根因**：`tracks` query 有 `refetchInterval: 5000`，但初始加载时 `activeMusicConfigId` 刚设置、tracks 数据还未返回，`useEffect` 用空的 `tracks` 覆盖了 `initCells`
 - **修复**：`useEffect` 开头加 `if (!tracks.length) return;` 保护，初始化由 `handleGenerate` 里的 `initCells` 单独负责
+---
+
+## 音乐矩阵独立脚本生成后前端显示 pending
+
+**日期：** 2026-05-29
+**严重性：** 高（功能不可用）
+**影响范围：** 音乐矩阵页面
+
+**症状：** 独立脚本生成 36 首音乐成功，文件在磁盘上，但前端矩阵页面显示全部 pending。
+
+**根因链：**
+1. 后端线程池 `submit_music_matrix_async` 并发 4 worker
+2. 多个矩阵同时跑时 quota 表 INSERT 锁冲突（`lock wait timeout`）
+3. 任务卡死在 `running` 状态
+4. 用独立脚本 `gen_music_v2.py` 直接调 MiniMax API 绕过
+5. 独立脚本只写文件到磁盘，**不写 `runs` 和 `assets` 表**
+6. 前端 API `GET /music/configs/{id}/tracks` 通过 JOIN runs+assets 判断状态
+7. 数据库无记录 → 前端显示 `pending`
+
+**附加问题：** 文件命名不一致
+- 独立脚本：`works/music/2026-05-29/matrix-music-matrix-2/r0c0.mp3`
+- 数据库期望：`works/music/2026-05-29/2026-05-29__game-bgm__music__r0c0__v001.mp3`
+
+**失败的修复尝试：**
+1. 直接复制文件到期望路径 → 部分成功，但数据库记录仍缺失
+2. 手动插入 runs/assets 记录 → 成功但容易出错（is_favorite 字段 NOT NULL 无默认值）
+
+**最终修复：**
+1. 添加 `POST /api/matrix/music/sync/{config_id}` 端点
+   - 自动扫描磁盘文件（支持两种路径格式）
+   - 同步到 runs/assets 表
+2. 创建 `tools/gen_music_independent.py` 带自动同步
+3. 创建 `tools/sync_music_matrix.py` 独立同步工具
+
+**预防措施：**
+- 使用 `tools/gen_music_independent.py` 而非裸脚本
+- 生成后调用 sync 端点验证
+- `GET /api/matrix/music/configs/{id}/tracks` 检查全部 status=done
+
+**相关代码：**
+- `backend/routers/matrix.py` → `sync_music_matrix()`
+- `tools/gen_music_independent.py` → `sync_to_db()`
+- `tools/sync_music_matrix.py` → 独立同步
+
+---
+
+## 前端 useEffect 竞态导致矩阵图片错位
+
+**日期：** 2026-05-29
+**严重性：** 中（显示错误）
+**影响范围：** 图片矩阵 view 模式
+
+**症状：** 切换配置后，图片显示在错误的行列位置。
+
+**根因：** `loadConfig()` 调用 `setSubjectsText/setStylesText`，state 更新是异步的。Grid 渲染用 config 对象（立即可用），但 useEffect 用 state 变量（可能还是旧值）→ variant 匹配用错的 subjects/styles。
+
+**修复：** useEffect 中从 `configList.find(id)` 读取 subjects/styles，而非 state 变量。
+
+**代码位置：** `frontend/src/pages/MatrixPage.tsx` useEffect 依赖 `[mode, activeConfigId, historyAssets, configList]`
+
+---
+
+## 浏览器缓存导致 JS 修改不生效
+
+**日期：** 2026-05-29
+**严重性：** 中（用户看不到更新）
+**影响范围：** 所有前端页面
+
+**症状：** 修改编译后的 JS 文件，手机端仍显示旧版本。
+
+**根因：** 浏览器缓存了旧的 JS 文件（文件名未变）。
+
+**修复：**
+1. 重命名 JS 文件：`mv old.js new.js`
+2. 更新 index.html 引用
+3. 创建 symlink 兼容旧缓存：`ln -sf new.js old.js`
+
+**预防：** 每次手动修改 dist/ 后必须做缓存刷新。
+
