@@ -556,3 +556,41 @@ const base = cfg.prompt_base !== undefined
 - 登录 Token Plan
 - 安装官方 SKILL
 
+
+---
+
+## 2026-05-29 (续)
+
+### 角色一致性测试系统
+
+**目标：** 测试 MiniMax image-01 的人物一致性能力
+
+**流程：**
+1. 定义角色（4-6个主角）→ 生成基础图（t2i）
+2. 每个角色 × 多种变体（表情/动作/装备/形象）→ 用 subject_reference 保持一致性
+3. 前端表格：行=角色，列=变体类型，单元格=图片+评分
+
+**技术要点：**
+- MiniMax API 支持 `subject_reference: [{"type": "character", "image_file": "URL"}]`
+- 参考图需要公网可访问（通过 /files/ 端点提供）
+- 建议使用单人正面照获得最佳效果
+
+**新增文件：**
+- `backend/routers/consistency.py` — 一致性测试 API
+- `frontend/src/pages/ConsistencyPage.tsx` — 一致性测试页面
+
+**数据库表：**
+- `consistency_tests` — 测试会话
+- `consistency_characters` — 角色定义 + 基础图
+- `consistency_variations` — 变体图 + 评分
+
+**API 端点：**
+- `GET /api/consistency/tests` — 列表
+- `POST /api/consistency/tests` — 创建
+- `GET /api/consistency/tests/{id}` — 详情
+- `POST /api/consistency/tests/{id}/generate-base` — 生成基础图
+- `POST /api/consistency/tests/{id}/generate-variations` — 生成变体图
+- `PUT /api/consistency/variations/{id}/score` — 更新评分
+
+**Git:** commit `65b394e` → pushed to main
+
