@@ -31,3 +31,5 @@ works/
 # OS
 .DS_Store
 Thumbs.db
+# Build artifacts with custom prefixes (legacy deploy backups)
+dist*/
