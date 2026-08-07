@@ -77,7 +77,8 @@ class AudioGenerateResponse(BaseModel):
 # ── Helpers ────────────────────────────────────────────────────────────
 
 def get_audio_url(file_path: str) -> str:
-    return f"http://localhost:8000/files/{file_path}"
+    base = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+    return f"{base}/files/{file_path}"
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────

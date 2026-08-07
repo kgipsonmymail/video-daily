@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { musicApi, type MusicGenerateParams } from "../api/music";
 import { quotasApi } from "../api/quotas";
 
-const FILE_BASE = "http://localhost:8000/files";
+const FILE_BASE = "/files";
 
 // ── Music models with quota info ──────────────────────────────────────────────
 const MUSIC_MODELS = [
@@ -171,7 +171,7 @@ function SingleMusicTab() {
       setGenError("翻唱模型需要填写参考音频 URL");
       return;
     }
-    if (!params.is_instrumental && !params.lyrics.trim() && !params.lyrics_optimizer) {
+    if (!params.is_instrumental && !(params.lyrics ?? "").trim() && !params.lyrics_optimizer) {
       setGenError("请输入歌词，或选择纯音乐，或开启歌词优化");
       return;
     }
@@ -241,7 +241,7 @@ function SingleMusicTab() {
           </div>
 
           {/* music-cover 需要参考音频 URL */}
-          {params.model.includes("cover") && (
+          {params.model?.includes("cover") && (
             <div>
               <label style={{ fontSize: 12, color: "#8a8394", marginBottom: 4, display: "block" }}>
                 参考音频 URL <span style={{ color: "#ef4444" }}>*</span>
@@ -325,7 +325,7 @@ function SingleMusicTab() {
                 }}
               />
               <div style={{ fontSize: 10, color: "#bdb9c8", textAlign: "right", marginTop: 2 }}>
-                {params.lyrics.length}/3500
+                {(params.lyrics ?? "").length}/3500
               </div>
               <div style={{ fontSize: 10, color: "#bdb9c8", marginTop: 3 }}>
                 结构标签：[Intro] [Verse] [Pre Chorus] [Chorus] [Interlude] [Bridge] [Outro] [Break] [Hook]

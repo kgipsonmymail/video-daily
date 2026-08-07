@@ -3,6 +3,7 @@
 """
 
 import os
+import json
 import tarfile
 import uuid
 import requests
@@ -52,7 +53,17 @@ def list_voices(
     sql += " ORDER BY created_at DESC LIMIT :limit"
     params["limit"] = limit
     rows = db.execute(text(sql), params).fetchall()
-    return [VoiceSampleResponse.model_validate(row._mapping) for row in rows]
+    rows_list = []
+    for _row in rows:
+        _m = dict(_row._mapping)
+        _gp = _m.get("generation_params")
+        if isinstance(_gp, str) and _gp.strip():
+            try:
+                _m["generation_params"] = json.loads(_gp)
+            except Exception:
+                _m["generation_params"] = None
+        rows_list.append(VoiceSampleResponse.model_validate(_m))
+    return rows_list
 
 
 # ⚠️ /preview 必须在 /{sample_id} 之前，否则 /preview 会被当作 sample_id="preview"
@@ -146,8 +157,8 @@ def preview_voice(req: VoicePreviewRequest, http_request: Request, db: Session =
     db.commit()
     db.refresh(v)
 
-    # 静态文件服务固定在 8002
-    origin = "http://localhost:8000"
+    # 静态资源 URL 从 PUBLIC_BASE_URL 读取（默认老端口保持兼容）
+    origin = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
     file_url = f"{origin}/files/{relative_path}"
     return {"id": v.id, "download_url": file_url, "voice_id": req.voice_id, "voice_name": req.voice_name}
 

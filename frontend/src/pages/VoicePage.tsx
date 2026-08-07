@@ -90,11 +90,11 @@ const LANG_LABELS: Record<string, string> = {
 };
 
 function getAudioAccessUrl(filePath: string): string {
-  return `http://localhost:8000/files/${filePath}`;
+  return `/files/${filePath}`;
 }
 
 function getAudioDownloadUrl(filePath: string): string {
-  return `http://localhost:8000/download/${filePath}`;
+  return `/download/${filePath}`;
 }
 
 // ── Emotion options ────────────────────────────────────────────────
@@ -1064,10 +1064,10 @@ function SampleCard({ sample, isPlaying, isPaused, onPlayOrPause, onToggleFav, o
       {sample.script_text && (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 6, lineHeight: 1.45 }}>
           <span style={{ fontSize: 11, color: "#8a8394", flex: 1 }}>
-            "{sample.script_text.slice(0, 60)}{sample.script_text.length > 60 ? "…" : ""}"
+            "{ (sample.script_text ?? "").slice(0, 60)}{(sample.script_text ?? "").length > 60 ? "…" : ""}"
           </span>
           <button
-            onClick={() => navigator.clipboard.writeText(sample.script_text)}
+            onClick={() => navigator.clipboard.writeText(sample.script_text ?? "")}
             title="复制台词"
             style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "#7b4fc4", padding: "0 2px" }}
           >📋</button>

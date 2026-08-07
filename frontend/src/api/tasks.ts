@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { TaskQueueResponse, TaskQueueCreate, AutoPromptRequest } from "../types";
 
-const BASE = "http://localhost:8000/api/tasks";
+const BASE = "/api/tasks";
 
 export const tasksApi = {
   list(params?: { quota_date?: string; task_type?: string; status?: string; limit?: number }) {

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { assetsApi } from "../api/assets";
 import type { AssetResponse, Modality } from "../types";
 
-const FILE_BASE = "http://localhost:8000/files";
+const FILE_BASE = "/files";
 
 interface Props {
   modality: Modality;
