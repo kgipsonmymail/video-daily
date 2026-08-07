@@ -10,6 +10,7 @@ import MatrixPage from "./pages/MatrixPage";
 import MusicPage from "./pages/MusicPage";
 import VoicePage from "./pages/VoicePage";
 import ConsistencyPage from "./pages/ConsistencyPage";
+import QuotaTestPage from "./pages/QuotaTestPage";
 import type { Page, Modality } from "./types";
 
 const queryClient = new QueryClient({
@@ -88,6 +89,12 @@ function AppContent() {
           path="/consistency"
           element={
             <ConsistencyPage />
+          }
+        />
+        <Route
+          path="/quota-test"
+          element={
+            <QuotaTestPage />
           }
         />
         <Route path="*" element={<Navigate to="/tasks" replace />} />
