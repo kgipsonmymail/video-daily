@@ -14,7 +14,7 @@ from backend.database import get_db
 
 router = APIRouter()
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
@@ -35,6 +35,10 @@ def create_test(data: dict, db: Session = Depends(get_db)):
     notes = data.get("notes", "")
     characters = data.get("characters", [])  # [{"name": "角色A", "prompt": "..."}]
     variation_types = data.get("variation_types", ["表情", "动作", "装备"])  # 变体类型列表
+    # style_prefix: 风格+构图前缀，会自动加到每个 variation prompt 前面
+    # 例如 "pixel art style, 16-bit retro game character, full body shot"
+    # 这样变体只描述变化部分，但风格和构图保持一致
+    style_prefix = data.get("style_prefix", "")
 
     if not characters:
         raise HTTPException(status_code=400, detail="至少需要一个角色")
@@ -57,9 +61,9 @@ def create_test(data: dict, db: Session = Depends(get_db)):
 
         # 为每个角色创建变体占位
         for j, vtype in enumerate(variation_types):
-            # 根据变体类型生成 prompt
-            base_desc = char.get("prompt", "")
-            vprompt = f"{base_desc}, {vtype}变体"
+            # 变体 prompt = 风格前缀 + 变化描述
+            # 不包含角色外貌，让 subject_reference 承担一致性
+            vprompt = f"{style_prefix}, {vtype}" if style_prefix else vtype
             db.execute(text(
                 "INSERT INTO consistency_variations (character_id, variation_type, variation_prompt, order_index) "
                 "VALUES (:char_id, :vtype, :vprompt, :idx)"
