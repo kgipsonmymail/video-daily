@@ -9,13 +9,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models import Base
 from backend.database import engine
-from backend.routers import runs, assets, prompts, quotas, tasks, generate, matrix, voices, audio, music, chat, consistency
+from backend.routers import runs, assets, prompts, quotas, tasks, generate, matrix, voices, audio, music, chat, consistency, quota_test
 
 # 项目根目录，用于静态文件访问
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -62,6 +62,7 @@ app.include_router(audio.router, prefix="/api/audio", tags=["音频工坊"])
 app.include_router(music.router, prefix="/api/music", tags=["音乐生成"])
 app.include_router(chat.router, prefix="/api/chat", tags=["文本对话"])
 app.include_router(consistency.router, prefix="/api/consistency", tags=["一致性测试"])
+app.include_router(quota_test.router, tags=["额度测试"])
 
 
 @app.get("/api/health")
@@ -99,14 +100,15 @@ def download_file(file_path: str):
 
 
 @app.get("/files/{file_path:path}")
-def serve_file(file_path: str):
+def serve_file(request: Request, file_path: str):
     """
-    提供本地文件访问服务（浏览器直接播放/预览）
+    提供本地文件访问服务（支持 Range 请求，音频拖拽快进）
     """
     import os
     full_path = PROJECT_ROOT / file_path
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
+
     media_types = {
         ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg",
         ".flac": "audio/flac", ".pcm": "audio/pcm",
@@ -115,6 +117,40 @@ def serve_file(file_path: str):
     }
     _, ext = os.path.splitext(file_path)
     media_type = media_types.get(ext.lower(), "application/octet-stream")
+    file_size = full_path.stat().st_size
+
+    # 检查 Range 请求（音频拖拽快进）
+    range_header = request.headers.get("Range")
+    if range_header:
+        # 解析 Range: bytes=start-end
+        try:
+            range_match = range_header.replace("bytes=", "").split("-")
+            range_start = int(range_match[0]) if range_match[0] else 0
+            range_end = int(range_match[1]) if range_match[1] else file_size - 1
+        except (ValueError, IndexError):
+            range_start, range_end = 0, file_size - 1
+
+        if range_start >= file_size:
+            return Response(
+                status_code=416,
+                headers={"Content-Range": f"*/{file_size}"},
+            )
+
+        content_length = range_end - range_start + 1
+        content = full_path.read_bytes()[range_start:range_end + 1]
+        return Response(
+            content=content,
+            status_code=206,
+            media_type=media_type,
+            headers={
+                "Content-Range": f"bytes {range_start}-{range_end}/{file_size}",
+                "Content-Length": str(content_length),
+                "Accept-Ranges": "bytes",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+
+    # 普通请求
     contents = full_path.read_bytes()
     return Response(
         content=contents,
@@ -124,5 +160,6 @@ def serve_file(file_path: str):
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
             "Content-Length": str(len(contents)),
+            "Accept-Ranges": "bytes",
         },
     )
