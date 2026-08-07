@@ -594,3 +594,12 @@ const base = cfg.prompt_base !== undefined
 
 **Git:** commit `65b394e` → pushed to main
 
+# 2026-08-07 项目审计
+
+- 从 `origin/main` 快进同步至 `dcbb75a`。
+- 按 WCS 审计清单完成后端文件服务、上传、认证边界、依赖与文档一致性检查。
+- 新增审计报告：[`docs/audit_report.md`](audit_report.md)。
+- 验证：`python -m compileall -q backend tools src` 通过；`npm run build` 与 `npm run lint` 因未安装 `frontend/node_modules` 未执行成功。
+- 未修改业务代码；后续按审计报告中的 P1/P2 问题处理。
+
+- 基于最新中文版 WCS 增加 `docs/project_index.yaml`，作为开发、维护和审计任务的最小化入口索引；审计报告改为功能业务、效率鲁棒、文档、以及安全交付四维结构。

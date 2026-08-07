@@ -1,0 +1,62 @@
+# WCS 项目中枢索引：每次开发、维护、审计任务首先阅读。
+project:
+  name: video-daily
+  type: MiniMax 内容生成与资产管理系统
+  stack: FastAPI + SQLAlchemy + MySQL/SQLite + React/Vite
+
+maintenance:
+  current_focus: "2026-08-07：完成 WCS 四维审计，优先处理文件边界、上传限制和 API 访问控制。"
+  last_maintained: "2026-08-07"
+
+docs:
+  - path: README.md
+    purpose: 项目入口与快速开始
+    read_when: [onboarding, run]
+  - path: docs/audit_report.md
+    purpose: 最近的四维项目审计及风险处置建议
+    read_when: [audit, security, maintenance]
+  - path: docs/features.md
+    purpose: 已实现能力与验证状态
+    read_when: [feature, audit]
+  - path: docs/project_status.md
+    purpose: 架构、运行约束和已知限制
+    read_when: [onboarding, audit, deployment]
+  - path: docs/structure.md
+    purpose: 目录和模块映射
+    read_when: [navigation, refactor]
+  - path: docs/CODING_STANDARDS.md
+    purpose: 项目编码规范
+    read_when: [development, review]
+  - path: docs/workflow.md
+    purpose: 本地运行、调度和工作流说明
+    read_when: [development, operations]
+  - path: docs/dev_plan.md
+    purpose: 计划、待办和优先级
+    read_when: [planning, maintenance]
+  - path: docs/error_book.md
+    purpose: 已知问题与修复记录
+    read_when: [bug, troubleshooting]
+  - path: docs/dev_log.md
+    purpose: 开发和审计历史
+    read_when: [handover, history]
+
+entry_points:
+  - path: backend/main.py
+    purpose: FastAPI 应用、路由注册与本地文件服务
+  - path: frontend/src/App.tsx
+    purpose: React 前端入口
+  - path: tools/pipeline.py
+    purpose: 独立内容生成管线
+  - path: tools/scheduler.py
+    purpose: 每日任务调度
+
+task_contexts:
+  audit:
+    docs: [docs/audit_report.md, docs/features.md, docs/project_status.md]
+    trigger_keywords: [审计, audit, 健康检查, 质量评估]
+  security:
+    docs: [docs/audit_report.md, docs/CODING_STANDARDS.md]
+    trigger_keywords: [安全, 认证, 文件上传, 漏洞]
+  feature:
+    docs: [docs/features.md, docs/dev_plan.md, docs/structure.md]
+    trigger_keywords: [功能, 开发, 新需求]
