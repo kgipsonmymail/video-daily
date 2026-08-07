@@ -5,7 +5,7 @@ import { generateApi } from "../api/generate";
 import { assetsApi } from "../api/assets";
 import type { AssetResponse } from "../types";
 
-const FILE_BASE = "http://localhost:8000/files";
+const FILE_BASE = "/files";
 
 // 工具：组合完整 prompt（支持自定义 base）
 function buildPrompt(basePrompt: string, subjectLine: string, styleLine: string) {
@@ -95,8 +95,350 @@ interface Cell {
   asset?: MatrixAsset;
   error?: string;
 }
+// ============ 音乐播放器（进度条 + 波形可视化） ============
+function MusicPlayer({ src, onClose }: { src: string; onClose: () => void }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const seekLockRef = useRef(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState<[number, number][]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
-function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const audio = new Audio();
+    audio.crossOrigin = "anonymous";
+    audio.src = src;
+    audioRef.current = audio;
+
+    audio.onloadedmetadata = () => {
+      setDuration(audio.duration);
+      const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+      const source = ctx.createMediaElementSource(audio);
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+    };
+
+    audio.ontimeupdate = () => {
+      if (seekLockRef.current) return;
+      setCurrentTime(audio.currentTime);
+    };
+
+    audio.onprogress = () => {
+      const ranges: [number, number][] = [];
+      for (let i = 0; i < audio.buffered.length; i++) {
+        ranges.push([audio.buffered.start(i), audio.buffered.end(i)]);
+      }
+      setBuffered(ranges);
+    };
+
+    audio.onended = () => { setIsPlaying(false); setCurrentTime(0); };
+    audio.onerror = () => { setIsPlaying(false); };
+
+    audio.load();
+    return () => {
+      audio.pause();
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioCtxRef.current) audioCtxRef.current.close();
+    };
+  }, [src]);
+
+  // 绘制波形 + 频谱
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const draw = () => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx || !analyserRef.current) return;
+      const analyser = analyserRef.current;
+      const bufLen = analyser.frequencyBinCount;
+      const freqData = new Uint8Array(bufLen);
+      const waveData = new Uint8Array(bufLen);
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 频率柱状图
+      analyser.getByteFrequencyData(freqData);
+      const barCount = 48;
+      const barW = w / barCount - 1;
+      const grad = ctx.createLinearGradient(0, h, 0, 0);
+      grad.addColorStop(0, "rgba(155,114,207,0.6)");
+      grad.addColorStop(1, "rgba(196,174,226,0.9)");
+      ctx.fillStyle = grad;
+      const step = Math.floor(bufLen / barCount);
+      for (let i = 0; i < barCount; i++) {
+        const val = freqData[i * step];
+        const barH = (val / 255) * (h * 0.45);
+        ctx.fillRect(i * (barW + 1), h - barH, barW, barH);
+      }
+
+      // 波形线
+      analyser.getByteTimeDomainData(waveData);
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 1.5;
+      const sliceW = w / bufLen;
+      let x = 0;
+      for (let i = 0; i < bufLen; i++) {
+        const v = waveData[i] / 128.0;
+        const y = (v * h) / 2;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        x += sliceW;
+      }
+      ctx.stroke();
+
+      if (isPlaying) animFrameRef.current = requestAnimationFrame(draw);
+    };
+
+    if (isPlaying) draw();
+    else if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); draw(); }
+  }, [isPlaying]);
+
+  function applySeek(ratio: number) {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const t = Math.max(0, Math.min(1, ratio)) * duration;
+    seekLockRef.current = true;
+    audio.currentTime = t;
+    setCurrentTime(t);
+    setTimeout(() => { seekLockRef.current = false; }, 250);
+  }
+
+  function getClientXFromEvent(e: MouseEvent | TouchEvent): number {
+    if ("touches" in e) {
+      return e.touches[0] ? e.touches[0].clientX : e.changedTouches[0].clientX;
+    }
+    return e.clientX;
+  }
+
+  function handleSeekFromClientX(clientX: number, trackRect: DOMRect) {
+    const ratio = Math.max(0, Math.min(1, (clientX - trackRect.left) / trackRect.width));
+    applySeek(ratio);
+  }
+
+  function handleTrackPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (isLoading) return;
+    e.preventDefault();
+    setIsDragging(true);
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    handleSeekFromClientX(e.clientX, rect);
+  }
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const track = document.getElementById("audio-progress-track");
+      if (!track) return;
+      const rect = track.getBoundingClientRect();
+      handleSeekFromClientX(getClientXFromEvent(e), rect);
+    };
+    const onEnd = () => setIsDragging(false);
+    window.addEventListener("mousemove", onMove as EventListener);
+    window.addEventListener("mouseup", onEnd);
+    window.addEventListener("touchmove", onMove as EventListener, { passive: true });
+    window.addEventListener("touchend", onEnd);
+    return () => {
+      window.removeEventListener("mousemove", onMove as EventListener);
+      window.removeEventListener("mouseup", onEnd);
+      window.removeEventListener("touchmove", onMove as EventListener);
+      window.removeEventListener("touchend", onEnd);
+    };
+  }, [isDragging, duration]);
+
+  function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) { audio.pause(); setIsPlaying(false); }
+    else { audio.play().then(() => setIsPlaying(true)).catch(() => {}); }
+  }
+
+  function fmt(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  }
+
+  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const bufferedPcts = buffered.map(([s, e]) => [(s / duration) * 100, (e / duration) * 100] as [number, number]);
+  const isLoading = duration === 0;
+
+  return (
+    <div style={{
+      position: "fixed",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: 9999,
+      background: "rgba(16,12,30,0.97)",
+      backdropFilter: "blur(20px)",
+      borderTop: "1px solid rgba(155,114,207,0.35)",
+      borderRadius: "20px 20px 0 0",
+      padding: "16px 16px max(16px, env(safe-area-inset-bottom))",
+      fontFamily: "var(--font-main)",
+      // 手机端最大宽度限制并居中
+      maxWidth: 680,
+      margin: "0 auto",
+    }}>
+      {/* 波形画布 */}
+      <canvas
+        ref={canvasRef}
+        width={640}
+        height={72}
+        style={{
+          width: "100%",
+          height: 72,
+          borderRadius: 10,
+          background: "rgba(255,255,255,0.04)",
+          display: "block",
+          marginBottom: 10,
+          cursor: isLoading ? "wait" : "pointer",
+          touchAction: "none",
+        }}
+        onClick={isLoading ? undefined : (e) => {
+          const rect = (e.currentTarget as HTMLCanvasElement).getBoundingClientRect();
+          handleSeekFromClientX(e.clientX, rect);
+        }}
+      />
+
+      {/* 进度条 */}
+      <div
+        id="audio-progress-track"
+        style={{
+          position: "relative",
+          height: isDragging ? 10 : 6,
+          background: "rgba(255,255,255,0.1)",
+          borderRadius: 3,
+          overflow: "hidden",
+          cursor: isLoading ? "default" : "pointer",
+          transition: "height 0.1s",
+          marginBottom: 12,
+          touchAction: "none",
+        }}
+        onPointerDown={handleTrackPointerDown}
+      >
+        {bufferedPcts.map(([start, end], i) => (
+          <div key={i} style={{
+            position: "absolute", top: 0, left: `${start}%`, width: `${end - start}%`,
+            height: "100%", background: "rgba(255,255,255,0.18)", borderRadius: 3,
+          }} />
+        ))}
+        <div style={{
+          position: "absolute", top: 0, left: 0, height: "100%",
+          width: `${pct}%`,
+          background: "linear-gradient(90deg, rgba(155,114,207,0.9), rgba(196,174,226,0.9))",
+          borderRadius: 3,
+          transition: isDragging ? "none" : "width 0.1s linear",
+          pointerEvents: "none",
+        }} />
+      </div>
+
+      {/* 拖拽手柄（绝对定位于进度条上方） */}
+      <div style={{
+        position: "absolute",
+        bottom: isDragging ? 59 : 62,
+        left: "50%",
+        transform: `translateX(-50%) translateX(${pct * 3.2}px)`,
+        width: isDragging ? 18 : 14,
+        height: isDragging ? 18 : 14,
+        borderRadius: "50%",
+        background: "#fff",
+        boxShadow: "0 0 8px rgba(155,114,207,0.8)",
+        cursor: "grab",
+        transition: isDragging ? "none" : "width 0.1s, height 0.1s, bottom 0.1s",
+        pointerEvents: "none",
+        opacity: isLoading ? 0 : 1,
+        zIndex: 2,
+      }} />
+
+      {/* 加载中 */}
+      {isLoading && (
+        <div style={{
+          position: "absolute",
+          top: 50,
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          fontSize: 12,
+          color: "rgba(255,255,255,0.5)",
+        }}>
+          加载中…
+        </div>
+      )}
+
+      {/* 时间 + 控制按钮 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontVariantNumeric: "tabular-nums", minWidth: 70 }}>
+          {fmt(currentTime)} / {fmt(duration)}
+        </span>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button onClick={togglePlay}
+            style={{
+              width: 44, height: 44, borderRadius: "50%", border: "none",
+              background: "linear-gradient(135deg, rgba(155,114,207,0.95), rgba(196,174,226,0.85))",
+              color: "#fff", fontSize: 18, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 14px rgba(155,114,207,0.5)",
+              touchAction: "manipulation",
+            }}>
+            {isPlaying ? "⏸" : "▶"}
+          </button>
+          <button onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 8,
+              padding: "5px 14px",
+              fontSize: 12,
+              color: "rgba(255,255,255,0.5)",
+              cursor: "pointer",
+              touchAction: "manipulation",
+            }}>
+            关闭
+          </button>
+        </div>
+
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", minWidth: 50, textAlign: "right" }}>
+          {Math.round(pct)}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ 图片 Lightbox ============
+function ImageLightbox({
+  images, index, onClose, onPrev, onNext,
+}: {
+  images: { src: string; label: string }[];
+  index: number;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") onPrev();
+      if (e.key === "ArrowRight") onNext();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose, onPrev, onNext]);
+
+  const item = images[index];
+
   return (
     <div
       onClick={onClose}
@@ -106,8 +448,37 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
         display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out",
       }}
     >
-      <img src={src} alt="" onClick={(e) => e.stopPropagation()}
-        style={{ width: "100vw", height: "100vh", objectFit: "contain" }} />
+      {/* 左箭头 */}
+      {images.length > 1 && (
+        <button onClick={(e) => { e.stopPropagation(); onPrev(); }}
+          style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)",
+            background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 50, width: 48, height: 48, fontSize: 22, color: "#fff",
+            cursor: "pointer", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          ‹
+        </button>
+      )}
+      {/* 图片 */}
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, maxWidth: "90vw", maxHeight: "90vh" }}>
+        <img src={item.src} alt=""
+          style={{ maxWidth: "90vw", maxHeight: "82vh", objectFit: "contain", borderRadius: 8 }} />
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center" }}>
+          {item.label}
+          {images.length > 1 && <span style={{ marginLeft: 10, opacity: 0.5 }}>{index + 1} / {images.length}</span>}
+        </div>
+      </div>
+      {/* 右箭头 */}
+      {images.length > 1 && (
+        <button onClick={(e) => { e.stopPropagation(); onNext(); }}
+          style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)",
+            background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 50, width: 48, height: 48, fontSize: 22, color: "#fff",
+            cursor: "pointer", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          ›
+        </button>
+      )}
+      {/* 关闭 */}
       <button onClick={onClose}
         style={{ position: "absolute", top: 16, right: 20, background: "rgba(255,255,255,0.1)",
           border: "1px solid rgba(255,255,255,0.18)", borderRadius: 50, width: 44, height: 44,
@@ -119,9 +490,7 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 }
 
 // 单格组件
-function Cell({ cell, onGenerate }: { cell: Cell; onGenerate: () => void }) {
-  const [lightbox, setLightbox] = useState<string | null>(null);
-
+function Cell({ cell, onGenerate, onImageClick }: { cell: Cell; onGenerate: () => void; onImageClick?: () => void }) {
   const bgMap: Record<string, string> = {
     idle: "rgba(200,195,215,0.15)",
     generating: "rgba(155,114,207,0.1)",
@@ -130,14 +499,12 @@ function Cell({ cell, onGenerate }: { cell: Cell; onGenerate: () => void }) {
   };
 
   return (
-    <>
-      {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
-      <div
-        onClick={() => {
-          if (cell.status === "done" && cell.asset) {
-            setLightbox(`${FILE_BASE}/${cell.asset.file_path}`);
-          }
-        }}
+    <div
+      onClick={() => {
+        if (cell.status === "done" && cell.asset) {
+          onImageClick?.();
+        }
+      }}
         style={{
           height: 110, borderRadius: 10, overflow: "hidden",
           background: bgMap[cell.status],
@@ -190,7 +557,6 @@ function Cell({ cell, onGenerate }: { cell: Cell; onGenerate: () => void }) {
           </button>
         )}
       </div>
-    </>
   );
 }
 
@@ -208,6 +574,43 @@ function MatrixGrid({
   const total = subjects.length * styles.length;
   const isRunning = Object.values(cells).some((c) => c.status === "generating");
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  // Lightbox state — centralized so arrow keys can navigate between cells
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const imageList = useMemo(() => {
+    const list: { src: string; label: string }[] = [];
+    for (let r = 0; r < subjects.length; r++) {
+      for (let c = 0; c < styles.length; c++) {
+        const cell = cells[`${r}-${c}`];
+        if (cell?.status === "done" && cell.asset) {
+          list.push({
+            src: `${FILE_BASE}/${cell.asset.file_path}`,
+            label: `${subjects[r].split(",")[0].trim()} × ${styles[c].abbr}`,
+          });
+        }
+      }
+    }
+    return list;
+  }, [cells, subjects, styles]);
+
+  // Map row-col key → index in imageList for navigation
+  const cellKeyToImageIndex = useMemo(() => {
+    const map: Record<string, number> = {};
+    imageList.forEach((_, i) => {
+      // Rebuild the key from the list order
+      let idx = 0;
+      for (let r = 0; r < subjects.length; r++) {
+        for (let c = 0; c < styles.length; c++) {
+          const cell = cells[`${r}-${c}`];
+          if (cell?.status === "done" && cell.asset) {
+            if (idx === i) map[`${r}-${c}`] = i;
+            idx++;
+          }
+        }
+      }
+    });
+    return map;
+  }, [imageList, cells, subjects, styles]);
 
   return (
     <div>
@@ -292,6 +695,7 @@ function MatrixGrid({
                       <Cell
                         cell={cell}
                         onGenerate={() => onGenerateCell(r, c)}
+                        onImageClick={() => setLightboxIndex(cellKeyToImageIndex[key] ?? 0)}
                       />
                     </td>
                   );
@@ -301,6 +705,17 @@ function MatrixGrid({
           </tbody>
         </table>
       </div>
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && imageList.length > 0 && (
+        <ImageLightbox
+          images={imageList}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onPrev={() => setLightboxIndex((i) => i !== null ? (i - 1 + imageList.length) % imageList.length : 0)}
+          onNext={() => setLightboxIndex((i) => i !== null ? (i + 1) % imageList.length : 0)}
+        />
+      )}
     </div>
   );
 }
@@ -652,7 +1067,7 @@ export default function MatrixPage() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#6b6375", marginBottom: 8 }}>历史配置</div>
                 {configList.map((cfg) => (
                   <div key={cfg.id}
-                    onClick={() => { loadConfig(cfg); setMode("view"); }}
+                    onClick={() => { setCells({}); lastFilledKeys.current = null; loadConfig(cfg); setMode("view"); }}
                     style={{
                       padding: "10px 14px", borderRadius: 10, marginBottom: 6, cursor: "pointer",
                       background: activeConfigId === cfg.id ? "rgba(155,114,207,0.12)" : "rgba(255,255,255,0.5)",
@@ -744,7 +1159,7 @@ export default function MatrixPage() {
 // ── Music Matrix ──────────────────────────────────────────────────────────────
 
 function MusicMatrix() {
-  const FILE_BASE = "http://localhost:8000/files";
+  const FILE_BASE = "/files";
   const [tab2, setTab2] = useState<"edit" | "history">("edit");
   const [musicName, setMusicName] = useState("游戏BGM矩阵");
   const [basePrompt, setBasePrompt] = useState("game background music, instrumental");
@@ -796,7 +1211,7 @@ function MusicMatrix() {
     if (!tracks.length) return;
     const newCells: Record<string, { status: string; file_path?: string; error?: string }> = {};
     for (const t of tracks) {
-      newCells[`${t.row}-${t.col}`] = { status: t.status, file_path: t.file_path, error: t.error };
+      newCells[`${t.row}-${t.col}`] = { status: t.status, file_path: t.file_path ?? undefined, error: t.error ?? undefined };
     }
     setCells(newCells);
   }, [tracks]);
@@ -848,15 +1263,11 @@ function MusicMatrix() {
   }
 
   function playTrack(filePath: string) {
-    if (audioRef.current) audioRef.current.pause();
-    const url = `${FILE_BASE}/${filePath}`;
-    setCurrentAudio(url);
-    audioRef.current = new Audio(url);
-    audioRef.current.play();
+    setCurrentAudio(`${FILE_BASE}/${filePath}`);
   }
 
   function stopPlayback() {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; setCurrentAudio(null); }
+    setCurrentAudio(null);
   }
 
   const doneCount = Object.values(cells).filter((c) => c.status === "done").length;
@@ -865,7 +1276,9 @@ function MusicMatrix() {
 
   return (
     <div>
-      <audio ref={audioRef} onEnded={() => setCurrentAudio(null)} />
+      {currentAudio && (
+        <MusicPlayer src={currentAudio} onClose={() => setCurrentAudio(null)} />
+      )}
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
         {([["edit", "编辑模式"], ["history", "历史记录"]] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab2(t)}
@@ -1019,7 +1432,7 @@ function MusicGridPreview({
   onPlay: (file_path: string) => void;
   onStop: () => void;
 }) {
-  const FILE_BASE = "http://localhost:8000/files";
+  const FILE_BASE = "/files";
   const statusColor: Record<string, string> = {
     idle: "rgba(200,195,215,0.15)", pending: "rgba(155,114,207,0.1)",
     generating: "rgba(155,114,207,0.15)", done: "transparent", failed: "rgba(220,150,150,0.08)",
@@ -1107,7 +1520,7 @@ function MusicGridPreview({
 // ── Image I2I Matrix ─────────────────────────────────────────────────────────
 
 function ImageI2IMatrix() {
-  const FILE_BASE = "http://localhost:8000/files";
+  const FILE_BASE = "/files";
   const [tab2, setTab2] = useState<"edit" | "history">("edit");
   const [name, setName] = useState("批量图生图矩阵");
   const [promptBaseText, setPromptBaseText] = useState("");
