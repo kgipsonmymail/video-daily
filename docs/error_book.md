@@ -206,3 +206,50 @@
 
 **预防：** 每次手动修改 dist/ 后必须做缓存刷新。
 
+---
+
+## 部署/前端已知坑
+
+### 前端硬编码 `http://localhost:8000` 导致部署到域名后空白
+
+**症状：** 部署到 mnm.7ygv.com 后浏览器访问，页面空白或音频/视频加载失败。
+
+**根因：** 前端代码（`src/api/client.ts` 等）和编译后的 JS 文件硬编码 `baseURL: "http://localhost:8000"`，浏览器请求用户本机 localhost 而非当前域名。
+
+**修复：**
+1. 源码改 `baseURL: "/api"`（相对路径）
+2. 编译后 sed 替换所有 `http://localhost:8000` 为空字符串：
+   ```bash
+   sed -i 's|http://localhost:8000||g' dist/assets/*.js
+   ```
+3. 同时检查 `backend/routers/audio.py:get_audio_url()` 和 `voices.py:150`，改读 `PUBLIC_BASE_URL` 环境变量
+4. `.env` 加 `PUBLIC_BASE_URL=https://mnm.7ygv.com`
+
+**影响文件：** 前端所有 `src/api/*.ts`、后端 `audio.py` / `voices.py`、`.env`
+
+---
+
+### 矩阵 view 模式 cells 竞态 bug
+
+**症状：** 矩阵页切换到"查看已有矩阵"模式后，cell 显示异常（图片错位、状态混乱）。
+
+**根因：** view 模式加载历史配置时与当前 cells 状态竞争，导致状态不一致。
+
+**修复：** 切换到 view 模式前**先清空当前 cells 数组**，再加载历史配置，避免新旧状态叠加。
+
+**影响文件：** 矩阵页前端
+
+---
+
+### 重新生成历史配置时 cells 必须先清空
+
+**症状：** 用历史矩阵配置再次生成时，新生成的图覆盖到错误的 cell。
+
+**根因：** cells 数组未重置，历史配置与新配置混在一起。
+
+**修复：** 在调用生成 API 前清空 cells，渲染后再逐个填充结果。
+
+**影响文件：** 矩阵页前端
+
+---
+
